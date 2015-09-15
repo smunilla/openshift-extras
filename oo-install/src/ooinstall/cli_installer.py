@@ -5,6 +5,13 @@ import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
 
+class InstallerInfo(object):
+    def __init__(self, ansible_ssh_user=None, deployment_type=None, masters=None, nodes=None):
+        self.ansible_ssh_user = ansible_ssh_user
+        self.deployment_type = deployment_type
+        self.masters = masters
+        self.nodes = nodes
+
 def validate_ansible_dir(ctx, param, path):
     if not path:
         raise click.BadParameter("An ansible path must be provided".format(path))
@@ -238,21 +245,67 @@ def confirm_continue(message):
     click.confirm("Are you ready to continue?", default=False, abort=True)
     return
 
-def error_if_missing_info(masters, nodes):
-    if not masters:
+def error_if_missing_info(oo_cfg, installer_info):
+    if not installer_info.masters:
         raise click.BadOptionUsage('masters',
                 'For unattended installs, masters must '
                 'be specified on the command line or '
                 'from the config file '
                 '{}'.format(oo_cfg.config_path))
 
-        if not nodes:
+        if not installer_info.nodes:
             raise click.BadOptionUsage('nodes',
                     'For unattended installs, nodes must '
                     'be specified on the command line or '
                     'from the config file '
                     '{}'.format(oo_cfg.config_path))
     return
+
+
+def get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes):
+    installer_info = InstallerInfo()
+    click.clear()
+
+    message = """
+Welcome to the OpenShift Enterprise 3 installation.
+
+Please confirm that following prerequisites have been met:
+
+* All systems where OpenShift will be installed are running Red Hat Enterprise
+  Linux 7.
+* All systems are properly subscribed to the required OpenShift Enterprise 3
+  repositories.
+* All systems have run docker-storage-setup (part of the Red Hat docker RPM).
+* All systems have working DNS that resolves not only from the perspective of
+  the installer but also from within the cluster.
+
+When the process completes you will have a default configuration for Masters
+and Nodes.  For ongoing environment maintenance it's recommended that the
+official Ansible playbooks be used.
+
+For more information on installation prerequisites please see:
+https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.html
+"""
+    confirm_continue(message)
+    click.clear()
+
+    if not ansible_ssh_user:
+        installer_info.ansible_ssh_user = get_ansible_ssh_user()
+        click.clear()
+
+    if not deployment_type:
+        installer_info.deployment_type = get_deployment_type(deployment_type)
+        click.clear()
+
+    # TODO: Until the Master can run the SDN itself we have to configure the Masters
+    # as Nodes too.
+    masters = collect_masters()
+    nodes = collect_nodes(masters)
+    nodes = list(set(masters + nodes))
+    installer_info.masters = masters
+    installer_info.nodes = nodes
+
+    return installer_info
 
 @click.command()
 @click.option('--configuration', '-c',
@@ -290,70 +343,45 @@ def error_if_missing_info(masters, nodes):
 # TODO: This probably needs to be updated now that hosts -> masters/nodes
 @click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
 def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts):
-    # TODO - Config settings precedence needs to be handled more generally
     oo_cfg = OOConfig(configuration)
+
     if not ansible_playbook_directory:
         ansible_playbook_directory = oo_cfg.settings.get('ansible_playbook_directory', '')
-    else:
-        oo_cfg.settings['ansible_playbook_directory'] = ansible_playbook_directory
     validate_ansible_dir(None, None, ansible_playbook_directory)
+    oo_cfg.settings['ansible_playbook_directory'] = ansible_playbook_directory
     oo_cfg.ansible_playbook_directory = ansible_playbook_directory
+
     oo_cfg.settings['ansible_log_path'] = ansible_log_path
     install_transactions.set_config(oo_cfg)
 
     masters = oo_cfg.settings.setdefault('masters', hosts)
     nodes = oo_cfg.settings.setdefault('nodes', hosts)
+
+    ansible_ssh_user = oo_cfg.settings.get('ansible_ssh_user', '')
+
+    if not deployment_type:
+        deployment_type = oo_cfg.settings.get('deployment_type', '')
+
     if unattended:
-        error_if_missing_info(masters, nodes)
+        installer_info = InstallerInfo(ansible_ssh_user,deployment_type,masters,nodes)
+        error_if_missing_info(oo_cfg, installer_info)
+    else:
+        installer_info = get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes)
 
-    click.clear()
-
-    message = """
-Welcome to the OpenShift Enterprise 3 installation.
-
-Please confirm that following prerequisites have been met:
-
-* All systems where OpenShift will be installed are running Red Hat Enterprise
-  Linux 7.
-* All systems are properly subscribed to the required OpenShift Enterprise 3
-  repositories.
-* All systems have run docker-storage-setup (part of the Red Hat docker RPM).
-* All systems have working DNS that resolves not only from the perspective of
-  the installer but also from within the cluster.
-
-When the process completes you will have a default configuration for Masters
-and Nodes.  For ongoing environment maintenance it's recommended that the
-official Ansible playbooks be used.
-
-For more information on installation prerequisites please see:
-https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.html
-"""
-    confirm_continue(message)
-    click.clear()
-
-    oo_cfg.settings['ansible_ssh_user'] = get_ansible_ssh_user()
-    click.clear()
-
-    oo_cfg.deployment_type = get_deployment_type(deployment_type)
-    click.clear()
-
-    # TODO: Until the Master can run the SDN itself we have to configure the Masters
-    # as Nodes too.
-    masters = collect_masters()
-    nodes = collect_nodes(masters)
-    nodes = list(set(masters + nodes))
-    oo_cfg.settings['masters'] = masters
-    oo_cfg.settings['nodes'] = nodes
+    oo_cfg.settings['ansible_ssh_user'] = installer_info.ansible_ssh_user
+    oo_cfg.deployment_type = installer_info.deployment_type
+    oo_cfg.settings['masters'] = installer_info.masters
+    oo_cfg.settings['nodes'] = installer_info.nodes
 
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
     if not 'validated_facts' in oo_cfg.settings:
         click.echo('Gathering information from hosts...')
-        callback_facts, error = install_transactions.default_facts(masters, nodes)
+        callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
         if error:
             click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
             sys.exit()
-        validated_facts = confirm_hosts_facts(list(set(masters + nodes)), callback_facts)
+        validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
 
@@ -363,9 +391,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     message = """
 If changes are needed to the values recorded by the installer please update {}.
 """.format(oo_cfg.config_path)
-    confirm_continue(message)
+    if not unattended:
+        confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(masters, nodes)
+    error = install_transactions.run_main_playbook(installer_info.masters, installer_info.nodes)
     if error:
         # The bootstrap script will print out the log location.
         message = """
