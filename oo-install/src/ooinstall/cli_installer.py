@@ -307,6 +307,22 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
 
     return installer_info
 
+
+def collect_new_hosts_from_user():
+    click.clear()
+    click.echo('***New Node Configuration***')
+    message = """
+Add new nodes here
+    """
+    click.echo(message)
+    return collect_hosts('new hosts')
+
+def is_already_installed(facts):
+    if (facts.get('version', '')):
+        return True
+    else:
+        return False
+
 @click.command()
 @click.option('--configuration', '-c',
               type=click.Path(file_okay=True,
@@ -340,9 +356,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
               type=click.Choice(['origin', 'online', 'enterprise','atomic-enterprise','openshift-enterprise']),
               default=None)
 @click.option('--unattended', '-u', is_flag=True, default=False)
+@click.option('--force', '-f', is_flag=True, default=False)
 # TODO: This probably needs to be updated now that hosts -> masters/nodes
 @click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
-def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts):
+def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts, force):
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:
@@ -373,17 +390,39 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
 
+    if oo_cfg.settings.get('additional_hosts', ''):
+        oo_cfg.settings['nodes'] = oo_cfg.settings['additional_hosts']
+
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
     if not 'validated_facts' in oo_cfg.settings:
         click.echo('Gathering information from hosts...')
         callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
+
         if error:
             click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
             sys.exit()
         validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
+
+
+    # Check if master or nodes already have something installed
+    if is_already_installed(oo_cfg.settings.get('validated_facts', '')):
+        if unattended:
+            if not force:
+                # error out with a warning and present an option to force
+                click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
+                sys.exit()
+        else:
+            # present a message about already installed hosts and ask the user what to do
+            click.echo('Installed environment detected and no additional nodes specified. ')
+            response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
+            if response == 1: # add more nodes
+                new_hosts = collect_new_hosts_from_user()
+                oo_cfg.settings['nodes'] = new_hosts
+            else:
+                True # proceeding as normal should do a clean install
 
     oo_cfg.save_to_disk()
 
