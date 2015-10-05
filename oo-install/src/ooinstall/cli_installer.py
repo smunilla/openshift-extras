@@ -222,7 +222,7 @@ Notes:
 
 def get_deployment_type(deployment_type):
     #TODO: Wording obvs needs some work.
-    if deployment_type == None:
+    if deployment_type == '':
         deployment_types = {1: 'enterprise',
                             2: 'openshift-enterprise',
                             3: 'atomic-enterprise',
@@ -289,11 +289,11 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     confirm_continue(message)
     click.clear()
 
-    if not ansible_ssh_user:
+    if ansible_ssh_user == '':
         installer_info.ansible_ssh_user = get_ansible_ssh_user()
         click.clear()
 
-    if not deployment_type:
+    if deployment_type == '':
         installer_info.deployment_type = get_deployment_type(deployment_type)
         click.clear()
 
@@ -318,10 +318,10 @@ Add new nodes here
     return collect_hosts('new hosts')
 
 def is_already_installed(facts):
-    if (facts.get('version', '')):
-        return True
-    else:
-        return False
+    for host in facts:
+        if('common' in facts.keys() and facts['common'].get('deployment_type', '')):
+            return True
+    return False
 
 @click.command()
 @click.option('--configuration', '-c',
@@ -395,20 +395,21 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
 
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
-    if not 'validated_facts' in oo_cfg.settings:
-        click.echo('Gathering information from hosts...')
-        callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
+    click.echo('Gathering information from hosts...')
+    callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
 
-        if error:
-            click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
-            sys.exit()
+    if error:
+        click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+        sys.exit()
+
+    if not 'validated_facts' in oo_cfg.settings:
         validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
 
 
     # Check if master or nodes already have something installed
-    if is_already_installed(oo_cfg.settings.get('validated_facts', '')):
+    if is_already_installed(callback_facts):
         if unattended:
             if not force:
                 # error out with a warning and present an option to force
