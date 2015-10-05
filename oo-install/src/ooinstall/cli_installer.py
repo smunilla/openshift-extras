@@ -317,9 +317,9 @@ Add new nodes here
     click.echo(message)
     return collect_hosts('new hosts')
 
-def is_already_installed(facts):
-    for host in facts:
-        if('common' in facts.keys() and facts['common'].get('deployment_type', '')):
+def is_already_installed(hosts, facts):
+    for host in hosts:
+        if('common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
             return True
     return False
 
@@ -409,7 +409,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
 
 
     # Check if master or nodes already have something installed
-    if is_already_installed(callback_facts):
+    if is_already_installed(list(set(installer_info.masters + installer_info.nodes)), callback_facts):
         if unattended:
             if not force:
                 # error out with a warning and present an option to force
