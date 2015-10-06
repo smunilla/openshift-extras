@@ -290,11 +290,11 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     click.clear()
 
     if ansible_ssh_user == '':
-        installer_info.ansible_ssh_user = get_ansible_ssh_user()
+        ansible_ssh_user = get_ansible_ssh_user()
         click.clear()
 
     if deployment_type == '':
-        installer_info.deployment_type = get_deployment_type(deployment_type)
+        deployment_type = get_deployment_type(deployment_type)
         click.clear()
 
     # TODO: Until the Master can run the SDN itself we have to configure the Masters
@@ -304,8 +304,11 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     if not nodes:
         nodes = collect_nodes(masters)
     nodes = list(set(masters + nodes))
+
     installer_info.masters = masters
     installer_info.nodes = nodes
+    installer_info.deployment_type = deployment_type
+    installer_info.ansible_ssh_user = ansible_ssh_user
 
     return installer_info
 
