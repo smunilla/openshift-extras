@@ -310,7 +310,7 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     return installer_info
 
 
-def collect_new_hosts_from_user():
+def collect_new_nodes_from_user():
     click.clear()
     click.echo('***New Node Configuration***')
     message = """
@@ -416,8 +416,10 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
             click.echo('Installed environment detected and no additional nodes specified. ')
             response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
             if response == 1: # add more nodes
-                new_hosts = collect_new_hosts_from_user()
-                oo_cfg.settings['nodes'] = new_hosts
+                new_nodes = collect_new_nodes_from_user()
+                installer_info.nodes = new_nodes
+                callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
+                oo_cfg.settings['nodes'] = installer_info.nodes
             else:
                 True # proceeding as normal should do a clean install
 
