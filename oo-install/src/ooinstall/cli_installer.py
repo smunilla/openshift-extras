@@ -299,8 +299,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
 
     # TODO: Until the Master can run the SDN itself we have to configure the Masters
     # as Nodes too.
-    masters = collect_masters()
-    nodes = collect_nodes(masters)
+    if not masters:
+        masters = collect_masters()
+    if not nodes:
+        nodes = collect_nodes(masters)
     nodes = list(set(masters + nodes))
     installer_info.masters = masters
     installer_info.nodes = nodes
