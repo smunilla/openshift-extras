@@ -321,7 +321,7 @@ Add new nodes here
 
 def is_already_installed(hosts, facts):
     for host in hosts:
-        if('common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
+        if(host in facts.keys() and 'common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
             return True
     return False
 
@@ -417,9 +417,15 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
             response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
             if response == 1: # add more nodes
                 new_nodes = collect_new_nodes_from_user()
+
                 installer_info.nodes = new_nodes
-                callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
                 oo_cfg.settings['nodes'] = installer_info.nodes
+
+                install_transactions.set_config(oo_cfg)
+                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
+                if error:
+                    click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+                    sys.exit()
             else:
                 True # proceeding as normal should do a clean install
 
