@@ -299,8 +299,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
 
     # TODO: Until the Master can run the SDN itself we have to configure the Masters
     # as Nodes too.
-    masters = collect_masters()
-    nodes = collect_nodes(masters)
+    if not masters:
+        masters = collect_masters()
+    if not nodes:
+        nodes = collect_nodes(masters)
     nodes = list(set(masters + nodes))
     installer_info.masters = masters
     installer_info.nodes = nodes
@@ -390,8 +392,8 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
 
-    if oo_cfg.settings.get('additional_hosts', ''):
-        oo_cfg.settings['nodes'] = oo_cfg.settings['additional_hosts']
+    if oo_cfg.settings.get('additional_nodes', ''):
+        oo_cfg.settings['nodes'] = oo_cfg.settings['additional_nodes']
 
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
@@ -401,12 +403,6 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     if error:
         click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
         sys.exit()
-
-    if not 'validated_facts' in oo_cfg.settings:
-        validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
-        if validated_facts:
-            oo_cfg.settings['validated_facts'] = validated_facts
-
 
     # Check if master or nodes already have something installed
     if is_already_installed(list(set(installer_info.masters + installer_info.nodes)), callback_facts):
@@ -424,6 +420,11 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
                 oo_cfg.settings['nodes'] = new_hosts
             else:
                 True # proceeding as normal should do a clean install
+
+    if not 'validated_facts' in oo_cfg.settings:
+        validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
+        if validated_facts:
+            oo_cfg.settings['validated_facts'] = validated_facts
 
     oo_cfg.save_to_disk()
 
