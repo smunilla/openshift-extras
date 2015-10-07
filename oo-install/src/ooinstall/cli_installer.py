@@ -263,6 +263,7 @@ def error_if_missing_info(oo_cfg, installer_info):
 
 
 def get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes):
+    """ Prompts the user for any information missing from the given configuration. """
     installer_info = InstallerInfo()
     click.clear()
 

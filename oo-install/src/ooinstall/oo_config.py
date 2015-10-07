@@ -41,6 +41,7 @@ class OOConfig(object):
         self.set_defaults()
 
     def set_defaults(self):
+        print self.settings
         if not 'ansible_config' in self.settings:
             self.settings['ansible_config'] = resource_filename(__name__, 'ansible.cfg')
         if not 'ansible_plugins_directory' in self.settings:
@@ -67,6 +68,7 @@ class OOConfig(object):
             if os.path.exists(self.config_path):
                 cfgfile = open(self.config_path, 'r')
                 new_settings = yaml.safe_load(cfgfile.read())
+                cfgfile.close()
             if new_settings:
                 self.settings = new_settings
             else:
