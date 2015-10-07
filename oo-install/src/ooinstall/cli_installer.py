@@ -222,7 +222,7 @@ Notes:
 
 def get_deployment_type(deployment_type):
     #TODO: Wording obvs needs some work.
-    if deployment_type == None:
+    if deployment_type == '':
         deployment_types = {1: 'enterprise',
                             2: 'openshift-enterprise',
                             3: 'atomic-enterprise',
@@ -290,23 +290,44 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     confirm_continue(message)
     click.clear()
 
-    if not ansible_ssh_user:
-        installer_info.ansible_ssh_user = get_ansible_ssh_user()
+    if ansible_ssh_user == '':
+        ansible_ssh_user = get_ansible_ssh_user()
         click.clear()
 
-    if not deployment_type:
-        installer_info.deployment_type = get_deployment_type(deployment_type)
+    if deployment_type == '':
+        deployment_type = get_deployment_type(deployment_type)
         click.clear()
 
     # TODO: Until the Master can run the SDN itself we have to configure the Masters
     # as Nodes too.
-    masters = collect_masters()
-    nodes = collect_nodes(masters)
+    if not masters:
+        masters = collect_masters()
+    if not nodes:
+        nodes = collect_nodes(masters)
     nodes = list(set(masters + nodes))
+
     installer_info.masters = masters
     installer_info.nodes = nodes
+    installer_info.deployment_type = deployment_type
+    installer_info.ansible_ssh_user = ansible_ssh_user
 
     return installer_info
+
+
+def collect_new_nodes_from_user():
+    click.clear()
+    click.echo('***New Node Configuration***')
+    message = """
+Add new nodes here
+    """
+    click.echo(message)
+    return collect_hosts('new hosts')
+
+def is_already_installed(hosts, facts):
+    for host in hosts:
+        if(host in facts.keys() and 'common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
+            return True
+    return False
 
 @click.command()
 @click.option('--configuration', '-c',
@@ -341,9 +362,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
               type=click.Choice(['origin', 'online', 'enterprise','atomic-enterprise','openshift-enterprise']),
               default=None)
 @click.option('--unattended', '-u', is_flag=True, default=False)
+@click.option('--force', '-f', is_flag=True, default=False)
 # TODO: This probably needs to be updated now that hosts -> masters/nodes
 @click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
-def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts):
+def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts, force):
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:
@@ -357,7 +379,6 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
 
     masters = oo_cfg.settings.setdefault('masters', hosts)
     nodes = oo_cfg.settings.setdefault('nodes', hosts)
-
     ansible_ssh_user = oo_cfg.settings.get('ansible_ssh_user', '')
 
     if not deployment_type:
@@ -374,14 +395,44 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
 
+    if oo_cfg.settings.get('additional_nodes', ''):
+        oo_cfg.settings['nodes'] = oo_cfg.settings['additional_nodes']
+
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
+    click.echo('Gathering information from hosts...')
+    callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
+
+    if error:
+        click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+        sys.exit()
+
+    # Check if master or nodes already have something installed
+    if is_already_installed(list(set(installer_info.masters + installer_info.nodes)), callback_facts):
+        if unattended:
+            if not force:
+                # error out with a warning and present an option to force
+                click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
+                sys.exit()
+        else:
+            # present a message about already installed hosts and ask the user what to do
+            click.echo('Installed environment detected and no additional nodes specified. ')
+            response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
+            if response == 1: # add more nodes
+                new_nodes = collect_new_nodes_from_user()
+
+                installer_info.nodes = new_nodes
+                oo_cfg.settings['nodes'] = installer_info.nodes
+
+                install_transactions.set_config(oo_cfg)
+                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
+                if error:
+                    click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+                    sys.exit()
+            else:
+                True # proceeding as normal should do a clean install
+
     if not 'validated_facts' in oo_cfg.settings:
-        click.echo('Gathering information from hosts...')
-        callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
-        if error:
-            click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
-            sys.exit()
         validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
