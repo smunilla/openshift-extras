@@ -1,6 +1,7 @@
 import os
 import unittest
 import tempfile
+import shutil
 
 from ooinstall.oo_config import OOConfig
 
@@ -19,14 +20,17 @@ validated_facts:
 """
 
 
-class OOConfigTests(unittest.TestCase):
+class OOCliFixture(unittest.TestCase):
 
     def setUp(self):
         self.tempfiles = []
 
     def tearDown(self):
         for path in self.tempfiles:
-            os.remove(path)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
 
     def write_config(self, config_str):
         """
@@ -40,6 +44,9 @@ class OOConfigTests(unittest.TestCase):
         self.tempfiles.append(path)
         f.close()
         return path
+
+
+class OOConfigTests(OOCliFixture):
 
     def test_load_config(self):
 

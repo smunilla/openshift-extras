@@ -60,6 +60,25 @@ def write_host(host, inventory, scheduleable=True):
         inventory.write('{}\n'.format(host))
     return
 
+
+def load_system_facts(inventory_file, os_facts_path, env_vars):
+    """
+    Retrieves system facts from the remote systems.
+    """
+    FNULL = open(os.devnull, 'w')
+    status = subprocess.call(['ansible-playbook',
+                     '--inventory-file={}'.format(inventory_file),
+                     os_facts_path],
+                     env=facts_env,
+                     stdout=FNULL)
+    if not status == 0:
+        return [], 1
+    callback_facts_file = open(CFG.settings['ansible_callback_facts_yaml'], 'r')
+    callback_facts = yaml.load(callback_facts_file)
+    callback_facts_file.close()
+    return callback_facts, 0
+
+
 def default_facts(masters, nodes):
     global CFG
     # TODO: This is a hack.  This ensures no previously validated_facts can
@@ -74,18 +93,8 @@ def default_facts(masters, nodes):
     facts_env["ANSIBLE_CALLBACK_PLUGINS"] = CFG.settings['ansible_plugins_directory']
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']
-    FNULL = open(os.devnull, 'w')
-    status = subprocess.call(['ansible-playbook',
-                     '--inventory-file={}'.format(inventory_file),
-                     os_facts_path],
-                     env=facts_env,
-                     stdout=FNULL)
-    if not status == 0:
-        return [], 1
-    callback_facts_file = open(CFG.settings['ansible_callback_facts_yaml'], 'r')
-    callback_facts = yaml.load(callback_facts_file)
-    callback_facts_file.close()
-    return callback_facts, 0
+    return load_system_facts(inventory_file, os_facts_path, facts_env)
+
 
 def run_main_playbook(masters, nodes):
     global CFG
