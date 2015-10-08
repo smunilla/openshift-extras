@@ -20,7 +20,6 @@ def validate_ansible_dir(ctx, param, path):
     #     raise click.BadParameter("Path \"{}\" doesn't exist".format(path))
 
 def is_valid_hostname(hostname):
-    print hostname
     if not hostname or len(hostname) > 255:
         return False
     if hostname[-1] == ".":

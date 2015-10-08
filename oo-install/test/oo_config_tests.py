@@ -24,6 +24,8 @@ class OOCliFixture(unittest.TestCase):
 
     def setUp(self):
         self.tempfiles = []
+        self.work_dir = tempfile.mkdtemp(prefix='ooconfigtests')
+        self.tempfiles.append(self.work_dir)
 
     def tearDown(self):
         for path in self.tempfiles:
@@ -32,16 +34,14 @@ class OOCliFixture(unittest.TestCase):
             else:
                 os.remove(path)
 
-    def write_config(self, config_str):
+    def write_config(self, path, config_str):
         """
         Write given config to a temporary file which will be cleaned
         up in teardown.
         Returns full path to the file.
         """
-        f, path = tempfile.mkstemp(prefix='ooconfigtests')
         f = open(path, 'w')
         f.write(config_str)
-        self.tempfiles.append(path)
         f.close()
         return path
 
@@ -50,9 +50,9 @@ class OOConfigTests(OOCliFixture):
 
     def test_load_config(self):
 
-        cfg_path = self.write_config(SAMPLE_CONFIG)
+        cfg_path = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), SAMPLE_CONFIG)
         ooconfig = OOConfig(cfg_path)
-        print ooconfig
 
         masters = ooconfig.settings['masters']
         self.assertEquals(1, len(masters))

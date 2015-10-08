@@ -69,7 +69,7 @@ def load_system_facts(inventory_file, os_facts_path, env_vars):
     status = subprocess.call(['ansible-playbook',
                      '--inventory-file={}'.format(inventory_file),
                      os_facts_path],
-                     env=facts_env,
+                     env=env_vars,
                      stdout=FNULL)
     if not status == 0:
         return [], 1
