@@ -3,11 +3,6 @@ import yaml
 from pkg_resources import resource_string, resource_filename
 
 PERSIST_SETTINGS=[
-    'Description',
-    'Name',
-    'Subscription',
-    'Vendor',
-    'Version',
     'masters',
     'nodes',
     'ansible_ssh_user',

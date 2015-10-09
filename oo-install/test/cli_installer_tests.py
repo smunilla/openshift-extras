@@ -32,11 +32,6 @@ DUMMY_SYSTEM_FACTS = {
 }
 
 SAMPLE_CONFIG = """
-Description: This is the configuration file for the OpenShift Ansible-Based Installer.
-Name: OpenShift Ansible-Based Installer Configuration
-Subscription: {type: none}
-Vendor: OpenShift Community
-Version: 0.0.1
 deployment-type: enterprise
 masters: [192.168.1.1]
 nodes: [192.168.1.1, 192.168.1.2]

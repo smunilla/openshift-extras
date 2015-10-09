@@ -6,11 +6,6 @@ import shutil
 from ooinstall.oo_config import OOConfig
 
 SAMPLE_CONFIG = """
-Description: This is the configuration file for the OpenShift Ansible-Based Installer.
-Name: OpenShift Ansible-Based Installer Configuration
-Subscription: {type: none}
-Vendor: OpenShift Community
-Version: 0.0.1
 ansible_config: /tmp/oo-install-ose-20151006-1249/lib/python2.7/site-packages/ooinstall/ansible.cfg
 deployment-type: enterprise
 masters: [10.0.0.1]
