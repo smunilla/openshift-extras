@@ -1,6 +1,7 @@
 
 import os
 import yaml
+import ConfigParser
 
 import ooinstall.cli_installer as cli
 import ooinstall.install_transactions
@@ -35,6 +36,7 @@ SAMPLE_CONFIG = """
 deployment-type: enterprise
 masters: [192.168.1.1]
 nodes: [192.168.1.1, 192.168.1.2]
+ansible_ssh_user: bob
 validated_facts:
   192.168.1.1: {hostname: master.my.example.com, ip: 192.168.1.1, public_hostname: master.my.example.com, public_ip: 10.0.0.1}
   192.168.1.2: {hostname: node1.my.example.com, ip: 192.168.1.2, public_hostname: node1.my.example.com, public_ip: 10.0.0.2}
@@ -86,14 +88,10 @@ class UnattendedCliTests(OOCliFixture):
 
         # Validate the config was written as we would expect at the end:
         f = open(config_file)
-        print "ORIG:"
-        print SAMPLE_CONFIG
-        print
-        print "NEW:"
         # Raw yaml to keep OOConfig defaults out of the way and see exactly what was written:
         new_config_yaml = yaml.safe_load(f.read())
         f.close()
-        print new_config_yaml
+        # TODO:
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
@@ -110,10 +108,30 @@ class UnattendedCliTests(OOCliFixture):
 
         self.cli_args.extend(["-c", config_file])
         result = self.runner.invoke(cli.main, self.cli_args)
-        #print result.output
 
         self.assertEquals(0, result.exit_code)
 
         # Run playbook should only try to install on the *new* node:
         self.assertEquals(([], ['192.168.1.2']),
             run_playbook_mock.call_args[0])
+
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_inventory_write(self, load_facts_mock, run_playbook_mock):
+
+        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        config_file = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), SAMPLE_CONFIG)
+
+        self.cli_args.extend(["-c", config_file])
+        result = self.runner.invoke(cli.main, self.cli_args)
+
+        # Check the inventory file looks as we would expect:
+        inventory = ConfigParser.ConfigParser(allow_no_value=True)
+        inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
+        self.assertEquals('bob', inventory.get('OSEv3:vars', 'ansible_ssh_user'))
+        self.assertEquals('openshift', inventory.get('OSEv3:vars', 'product_type'))
+
+

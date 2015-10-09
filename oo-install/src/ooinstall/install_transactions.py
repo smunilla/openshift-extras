@@ -14,7 +14,7 @@ def generate_inventory(masters, nodes):
     base_inventory.write('\n[OSEv3:children]\nmasters\nnodes\n')
     base_inventory.write('\n[OSEv3:vars]\n')
     base_inventory.write('ansible_ssh_user={}\n'.format(CFG.settings['ansible_ssh_user']))
-    if not CFG.settings['ansible_ssh_user'] == 'root':
+    if CFG.settings['ansible_ssh_user'] != 'root':
         base_inventory.write('ansible_sudo=true\n')
     base_inventory.write('deployment_type={}\n'.format(CFG.deployment_type))
     # TODO: Support AEP!
