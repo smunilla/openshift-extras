@@ -17,6 +17,7 @@ PERSIST_SETTINGS=[
     'ansible_log_path',
     'validated_facts',
     ]
+REQUIRED_FACTS = ['ip', 'public_ip', 'hostname', 'public_hostname']
 
 class OOConfigFileError(Exception):
     """The provided config file path can't be read/written
@@ -61,7 +62,33 @@ class OOConfig(object):
             if not self.settings[setting]:
                 self.settings.pop(setting)
 
-    def read_config(self, is_new = False):
+    def calc_missing_facts(self):
+        """
+        Determine which host facts are not defined in the config.
+
+        Returns a hash of host to a list of the missing facts.
+        """
+        result = {}
+        hosts = set(self.settings['masters'])
+        hosts.update(self.settings['nodes'])
+
+        for host in hosts:
+            if 'validated_facts' not in self.settings or \
+                host not in self.settings['validated_facts']:
+                # All facts are missing for this host:
+                result[host] = REQUIRED_FACTS
+                continue
+
+            facts = self.settings['validated_facts'][host]
+            missing_facts = []
+            for required_fact in REQUIRED_FACTS:
+                if required_fact not in facts:
+                    missing_facts.append(required_fact)
+            if len(missing_facts) > 0:
+                result[host] = missing_facts
+        return result
+
+    def read_config(self, is_new=False):
         try:
             new_settings = None
             if os.path.exists(self.config_path):
