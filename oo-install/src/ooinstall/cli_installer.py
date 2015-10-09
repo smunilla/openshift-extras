@@ -328,11 +328,48 @@ Add new nodes here
     click.echo(message)
     return collect_hosts('new hosts')
 
-def is_already_installed(hosts, facts):
+def is_already_installed(hosts, callback_facts):
+    installed_hosts = []
     for host in hosts:
         if(host in facts.keys() and 'common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
-            return True
-    return False
+            installed_hosts.apend(host)
+    return installed_hosts
+
+def get_hosts_to_run_on(oo_cfg, facts):
+    if oo_cfg.settings.get('additional_nodes', ''):
+        hosts_to_run_on = oo_cfg.settings['additional_nodes']
+    else:
+        hosts_to_run_on = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
+
+        # Check if master or nodes already have something installed
+        installed_hosts = is_already_installed(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts)
+        if installed_hosts:
+            if unattended:
+                if not force:
+                    # error out with a warning and present an option to force
+                    click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
+                    sys.exit(1)
+            else:
+                # present a message about already installed hosts and ask the user what to do
+                click.echo('Installed environment detected and no additional nodes specified. ')
+                response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
+                if response == 1: # add more nodes
+                    new_nodes = collect_new_nodes_from_user()
+
+                    hosts_to_run_on = new_nodes
+
+                    install_transactions.set_config(oo_cfg)
+                    callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
+                    if error:
+                        click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+                        sys.exit(1)
+                else:
+                    pass # proceeding as normal should do a clean install
+
+    return hosts_to_run_on, callback_facts
+
+
+###
 
 @click.command()
 @click.option('--configuration', '-c',
@@ -406,42 +443,17 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
 
-    if oo_cfg.settings.get('additional_nodes', ''):
-        oo_cfg.settings['nodes'] = oo_cfg.settings['additional_nodes']
 
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
     click.echo('Gathering information from hosts...')
     callback_facts, error = install_transactions.default_facts(
         oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
-
     if error:
         click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
         sys.exit(1)
 
-    # Check if master or nodes already have something installed
-    if is_already_installed(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts):
-        if unattended:
-            if not force:
-                # error out with a warning and present an option to force
-                click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
-                sys.exit(1)
-        else:
-            # present a message about already installed hosts and ask the user what to do
-            click.echo('Installed environment detected and no additional nodes specified. ')
-            response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
-            if response == 1: # add more nodes
-                new_nodes = collect_new_nodes_from_user()
-
-                oo_cfg.settings['nodes'] = new_nodes
-
-                install_transactions.set_config(oo_cfg)
-                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
-                if error:
-                    click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
-                    sys.exit(1)
-            else:
-                True # proceeding as normal should do a clean install
+    hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts)
 
     # We already verified this is not the case for unattended installs, so this can
     # only trigger for live CLI users:
@@ -463,7 +475,7 @@ If changes are needed to the values recorded by the installer please update {}.
     if not unattended:
         confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
+    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'], oo_cfg.settings['nodes'], hosts_to_run_on)
     if error:
         # The bootstrap script will print out the log location.
         message = """
