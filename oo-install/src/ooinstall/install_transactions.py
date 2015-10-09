@@ -81,10 +81,6 @@ def load_system_facts(inventory_file, os_facts_path, env_vars):
 
 def default_facts(masters, nodes):
     global CFG
-    # TODO: This is a hack.  This ensures no previously validated_facts can
-    # interfere with fetching the facts.
-    if 'validated_facts' in CFG.settings:
-        del CFG.settings['validated_facts']
     inventory_file = generate_inventory(masters, nodes)
     os_facts_path = '{}/playbooks/byo/openshift_facts.yml'.format(CFG.ansible_playbook_directory)
 
@@ -99,7 +95,7 @@ def default_facts(masters, nodes):
 def run_main_playbook(masters, nodes):
     global CFG
     inventory_file = generate_inventory(masters, nodes)
-    main_playbook_path = '{}/playbooks/byo/config.yml'.format(CFG.ansible_playbook_directory)
+    main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/byo/config.yml')
     facts_env = os.environ.copy()
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']

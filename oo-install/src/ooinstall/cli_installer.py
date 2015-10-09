@@ -264,7 +264,7 @@ def error_if_missing_info(oo_cfg):
             click.echo('Host "%s" missing facts: %s' % (host, ", ".join(missing_facts[host])))
 
     if missing_info:
-        sys.exit()
+        sys.exit(1)
 
 
 def get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes):
@@ -417,7 +417,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
 
     if error:
         click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
-        sys.exit()
+        sys.exit(1)
 
     # Check if master or nodes already have something installed
     if is_already_installed(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts):
@@ -425,7 +425,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
             if not force:
                 # error out with a warning and present an option to force
                 click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
-                sys.exit()
+                sys.exit(1)
         else:
             # present a message about already installed hosts and ask the user what to do
             click.echo('Installed environment detected and no additional nodes specified. ')
@@ -439,15 +439,21 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
                 callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
                 if error:
                     click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
-                    sys.exit()
+                    sys.exit(1)
             else:
                 True # proceeding as normal should do a clean install
 
-    if not 'validated_facts' in oo_cfg.settings:
+    # We already verified this is not the case for unattended installs, so this can
+    # only trigger for live CLI users:
+    # TODO: if there are *new* nodes and this is a live install, we may need the  user
+    # to confirm the settings for new nodes. Look into this once we're distinguishing
+    # between new and pre-existing nodes.
+    if len(oo_cfg.calc_missing_facts()) > 0:
         validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
 
+    click.echo('Writing updated config to: %s' % oo_cfg.config_path)
     oo_cfg.save_to_disk()
 
     click.echo('Ready to run installation process.')
@@ -462,9 +468,10 @@ If changes are needed to the values recorded by the installer please update {}.
         # The bootstrap script will print out the log location.
         message = """
 An error was detected.  After resolving the problem please relaunch the
-installtion process.
+installation process.
 """
         click.echo(message)
+        sys.exit(1)
     else:
         message = """
 The installation was successful!
