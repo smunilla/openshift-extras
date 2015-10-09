@@ -103,11 +103,12 @@ class UnattendedCliTests(OOCliFixture):
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_some_hosts_already_installed(self, load_facts_mock, run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
-        run_playbook_mock.return_value = 0
 
         # Add a fact that indicates one of our hosts is already installed.
         DUMMY_SYSTEM_FACTS['192.168.1.1']['common']['deployment_type'] = 'enterprise'
+
+        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        run_playbook_mock.return_value = 0
 
         config_file = self.write_config(os.path.join(self.work_dir,
             'ooinstall.conf'), SAMPLE_CONFIG)
@@ -116,7 +117,7 @@ class UnattendedCliTests(OOCliFixture):
         result = self.runner.invoke(cli.main, self.cli_args)
         #print result.output
 
-        self.assertEquals(1, result.exit_code)
+        self.assertEquals(0, result.exit_code)
 
         # Run playbook should only try to install on the *new* node:
         self.assertEquals(([], ['192.168.1.2']),
