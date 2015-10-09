@@ -244,21 +244,27 @@ def confirm_continue(message):
     click.confirm("Are you ready to continue?", default=False, abort=True)
     return
 
-def error_if_missing_info(oo_cfg, installer_info):
-    if not installer_info.masters:
-        raise click.BadOptionUsage('masters',
-                'For unattended installs, masters must '
-                'be specified on the command line or '
-                'from the config file '
-                '{}'.format(oo_cfg.config_path))
+def error_if_missing_info(oo_cfg):
+    missing_info = False
+    if 'masters' not in oo_cfg.settings or len(oo_cfg.settings['masters']) == 0:
+        missing_info = True
+        click.echo('For unattended installs, masters must be specified on the'
+            'command line or in the config file: %s' % oo_cfg.config_path)
 
-        if not installer_info.nodes:
-            raise click.BadOptionUsage('nodes',
-                    'For unattended installs, nodes must '
-                    'be specified on the command line or '
-                    'from the config file '
-                    '{}'.format(oo_cfg.config_path))
-    return
+    if 'nodes' not in oo_cfg.settings or len(oo_cfg.settings['nodes']) == 0:
+        missing_info = True
+        click.echo('For unattended installs, nodes must be specified on the'
+            'command line or in the config file: %s' % oo_cfg.config_path)
+
+    missing_facts = oo_cfg.calc_missing_facts()
+    if len(missing_facts) > 0:
+        missing_info = True
+        click.echo('For unattended installs, facts must be provided for all masters/nodes:')
+        for host in missing_facts:
+            click.echo('Host "%s" missing facts: %s' % (host, ", ".join(missing_facts[host])))
+
+    if missing_info:
+        sys.exit()
 
 
 def get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes):
@@ -376,16 +382,22 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     oo_cfg.settings['ansible_log_path'] = ansible_log_path
     install_transactions.set_config(oo_cfg)
 
+    # Use CLI hosts if not already specified:
+    # NOTE: This implies the config file masters/nodes override CLI.
+    # Probably should kill the CLI hosts, this doesn't work so well with masters/nodes.
     masters = oo_cfg.settings.setdefault('masters', hosts)
     nodes = oo_cfg.settings.setdefault('nodes', hosts)
     ansible_ssh_user = oo_cfg.settings.get('ansible_ssh_user', '')
 
+    # TODO: This reverts the above assumption and here the CLI is authoritative. Should
+    # probably make this consider config the authoritative source as well. Print a warning
+    # if both are specified.
     if not deployment_type:
         deployment_type = oo_cfg.settings.get('deployment_type', '')
 
     if unattended:
         installer_info = InstallerInfo(ansible_ssh_user,deployment_type,masters,nodes)
-        error_if_missing_info(oo_cfg, installer_info)
+        error_if_missing_info(oo_cfg)
     else:
         installer_info = get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes)
 
@@ -400,14 +412,15 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
     click.echo('Gathering information from hosts...')
-    callback_facts, error = install_transactions.default_facts(installer_info.masters, installer_info.nodes)
+    callback_facts, error = install_transactions.default_facts(
+        oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
 
     if error:
         click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
         sys.exit()
 
     # Check if master or nodes already have something installed
-    if is_already_installed(list(set(installer_info.masters + installer_info.nodes)), callback_facts):
+    if is_already_installed(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts):
         if unattended:
             if not force:
                 # error out with a warning and present an option to force
@@ -420,8 +433,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
             if response == 1: # add more nodes
                 new_nodes = collect_new_nodes_from_user()
 
-                installer_info.nodes = new_nodes
-                oo_cfg.settings['nodes'] = installer_info.nodes
+                oo_cfg.settings['nodes'] = new_nodes
 
                 install_transactions.set_config(oo_cfg)
                 callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
@@ -432,7 +444,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
                 True # proceeding as normal should do a clean install
 
     if not 'validated_facts' in oo_cfg.settings:
-        validated_facts = confirm_hosts_facts(list(set(installer_info.masters + installer_info.nodes)), callback_facts)
+        validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
 
@@ -445,7 +457,7 @@ If changes are needed to the values recorded by the installer please update {}.
     if not unattended:
         confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(installer_info.masters, installer_info.nodes)
+    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
     if error:
         # The bootstrap script will print out the log location.
         message = """
