@@ -14,7 +14,7 @@ class InstallerInfo(object):
 
 def validate_ansible_dir(ctx, param, path):
     if not path:
-        raise click.BadParameter("An ansible path must be provided".format(path))
+        raise click.BadParameter("An ansible path must be provided")
     return path
     # if not os.path.exists(path)):
     #     raise click.BadParameter("Path \"{}\" doesn't exist".format(path))
@@ -31,18 +31,25 @@ def validate_hostname(ctx, param, hosts):
     # if '' == hostname or is_valid_hostname(hostname):
     for hostname in hosts:
         if not is_valid_hostname(hostname):
-            raise click.BadParameter('"{}" appears to be an invalid hostname. Please double-check this value and re-enter it.'.format(hostname))
+            raise click.BadParameter('"{}" appears to be an invalid hostname. ' \
+                                     'Please double-check this value ' \
+                                     'and re-enter it.'.format(hostname))
     return hosts
 
 def validate_prompt_hostname(hostname):
     if '' == hostname or is_valid_hostname(hostname):
         return hostname
-    raise click.BadParameter('"{}" appears to be an invalid hostname. Please double-check this value and re-enter it.'.format(hostname))
+    raise click.BadParameter('"{}" appears to be an invalid hostname. ' \
+                             'Please double-check this value i' \
+                             'and re-enter it.'.format(hostname))
 
 def get_hosts(hosts):
-    click.echo('Please input each target host, followed by the return key. When finished, simply press return on an empty line.')
+    click.echo('Please input each target host, followed by the return key. ' \
+               'When finished, simply press return on an empty line.')
     while True:
-        hostname = click.prompt('hostname/IP address', default='', value_proc=validate_prompt_hostname)
+        hostname = click.prompt('hostname/IP address',
+                                default='',
+                                value_proc=validate_prompt_hostname)
         if '' == hostname:
             break
         hosts.append(hostname)
@@ -67,7 +74,8 @@ def list_hosts(hosts):
 def delete_hosts(hosts):
     while True:
         list_hosts(hosts)
-        del_idx = click.prompt('Select host to delete, y/Y to confirm, or n/N to add more hosts', default='n')
+        del_idx = click.prompt('Select host to delete, y/Y to confirm, ' \
+                               'or n/N to add more hosts', default='n')
         try:
             del_idx = int(del_idx)
             hosts.remove(hosts[del_idx])
@@ -141,12 +149,14 @@ environment can be overridden exporting the VISUAL environment variable.
         if hosts:
             for i, h in enumerate(hosts):
                 click.echo("{}) ".format(i+1) + h)
-            response = click.prompt("Please confirm the following {}.  y/Y to confirm, or n/N to edit".format(host_type), default='n')
+            response = click.prompt("Please confirm the following {}. " \
+                                    "y/Y to confirm, or n/N to edit".format(host_type), default='n')
             response = response.lower()
             if response == 'y':
                 break
         else:
-            response = click.prompt("No {} entered.  y/Y to confirm, or n/N to edit".format(host_type), default='n')
+            response = click.prompt("No {} entered.  y/Y to confirm, " \
+                                    "or n/N to edit".format(host_type), default='n')
             response = response.lower()
             if response == 'y':
                 break
@@ -196,10 +206,10 @@ Notes:
 
         validated_facts[h] = {}
         default_facts_lines.append(",".join([h,
-                                      callback_facts[h]["common"]["ip"],
-                                      callback_facts[h]["common"]["public_ip"],
-                                      callback_facts[h]["common"]["hostname"],
-                                      callback_facts[h]["common"]["public_hostname"]]))
+                                             callback_facts[h]["common"]["ip"],
+                                             callback_facts[h]["common"]["public_ip"],
+                                             callback_facts[h]["common"]["hostname"],
+                                             callback_facts[h]["common"]["public_hostname"]]))
 
     MARKER = '# Everything after this line is ignored.\n'
     message = click.edit("\n".join(default_facts_lines) + '\n\n' + MARKER + notes)
@@ -225,7 +235,7 @@ def get_deployment_type(deployment_type):
         deployment_types = {1: 'enterprise',
                             2: 'openshift-enterprise',
                             3: 'atomic-enterprise',
-                            }
+                           }
         message = """
 Which product to you want to install?
 
@@ -249,12 +259,12 @@ def error_if_missing_info(oo_cfg):
     if 'masters' not in oo_cfg.settings or len(oo_cfg.settings['masters']) == 0:
         missing_info = True
         click.echo('For unattended installs, masters must be specified on the'
-            'command line or in the config file: %s' % oo_cfg.config_path)
+                   'command line or in the config file: %s' % oo_cfg.config_path)
 
     if 'nodes' not in oo_cfg.settings or len(oo_cfg.settings['nodes']) == 0:
         missing_info = True
         click.echo('For unattended installs, nodes must be specified on the'
-            'command line or in the config file: %s' % oo_cfg.config_path)
+                   'command line or in the config file: %s' % oo_cfg.config_path)
 
     missing_facts = oo_cfg.calc_missing_facts()
     if len(missing_facts) > 0:
@@ -331,7 +341,9 @@ Add new nodes here
 def get_installed_hosts(hosts, callback_facts):
     installed_hosts = []
     for host in hosts:
-        if(host in facts.keys() and 'common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
+        if(host in callback_facts.keys()
+           and 'common' in callback_facts[host].keys()
+           and callback_facts[host]['common'].get('deployment_type', '')):
             installed_hosts.append(host)
     return installed_hosts
 
@@ -357,16 +369,19 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
         # for attended ask the user what to do
         else:
             click.echo('Installed environment detected and no additional nodes specified. ')
-            response = click.prompt('Do you want to (1) add more nodes or (2) perform a clean install?',type=int)
+            response = click.prompt('Do you want to (1) add more nodes or ' \
+                                    '(2) perform a clean install?', type=int)
             if response == 1: # add more nodes
                 new_nodes = collect_new_nodes_from_user()
 
                 hosts_to_run_on.append(new_nodes)
 
                 install_transactions.set_config(oo_cfg)
-                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],oo_cfg.settings['nodes'])
+                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],
+                                                                           oo_cfg.settings['nodes'])
                 if error:
-                    click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+                    click.echo("There was a problem fetching the required information. " \
+                               "See {} for details.".format(oo_cfg.settings['ansible_log_path']))
                     sys.exit(1)
             else:
                 pass # proceeding as normal should do a clean install
@@ -403,7 +418,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
               default="/tmp/ansible.log")
 @click.option('--deployment-type',
               '-t',
-              type=click.Choice(['origin', 'online', 'enterprise','atomic-enterprise','openshift-enterprise']),
+              type=click.Choice(['origin', 'online', 'enterprise', 'atomic-enterprise', 'openshift-enterprise']),
               default=None)
 @click.option('--unattended', '-u', is_flag=True, default=False)
 @click.option('--force', '-f', is_flag=True, default=False)
@@ -452,7 +467,8 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     callback_facts, error = install_transactions.default_facts(
         oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
     if error:
-        click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
+        click.echo("There was a problem fetching the required information. " \
+                   "Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
         sys.exit(1)
 
     hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force)
@@ -463,7 +479,8 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
     # to confirm the settings for new nodes. Look into this once we're distinguishing
     # between new and pre-existing nodes.
     if len(oo_cfg.calc_missing_facts()) > 0:
-        validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes'])), callback_facts)
+        validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] +
+                                                       oo_cfg.settings['nodes'])), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
 
@@ -477,7 +494,9 @@ If changes are needed to the values recorded by the installer please update {}.
     if not unattended:
         confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'], oo_cfg.settings['nodes'], hosts_to_run_on)
+    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'],
+                                                   oo_cfg.settings['nodes'],
+                                                   hosts_to_run_on)
     if error:
         # The bootstrap script will print out the log location.
         message = """
