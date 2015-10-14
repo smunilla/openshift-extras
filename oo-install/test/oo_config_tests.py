@@ -2,32 +2,52 @@ import os
 import unittest
 import tempfile
 import shutil
+import yaml
 
 from ooinstall.oo_config import OOConfig
 
 SAMPLE_CONFIG = """
-deployment-type: enterprise
+deployment_type: enterprise
+hosts:
+  - ip: 10.0.0.1
+    hostname: master-private.example.com
+    public_ip: 24.222.0.1
+    public_hostname: master.example.com
+    master: true
+    node: true
+  - ip: 10.0.0.2
+    hostname: node1-private.example.com
+    public_ip: 24.222.0.2
+    public_hostname: node1.example.com
+    node: true
+  - ip: 10.0.0.3
+    hostname: node2-private.example.com
+    public_ip: 24.222.0.3
+    public_hostname: node2.example.com
+    node: true
+"""
+
+LEGACY_CONFIG = """
+deployment_type: enterprise
 masters: [10.0.0.1]
 nodes: [10.0.0.1, 10.0.0.2, 10.0.0.3]
 validated_facts:
   10.0.0.1: {hostname: private.example.com, ip: 10.0.0.1, public_hostname: public.example.com, public_ip: 192.168.0.1}
 """
 
-CONFIG_COMPLETE_FACTS = """
-masters: [10.0.0.1]
-nodes: [10.0.0.1, 10.0.0.2, 10.0.0.3]
-validated_facts:
-  10.0.0.1: {hostname: master.example.com, ip: 10.0.0.1, public_hostname: master.example.com, public_ip: 192.168.0.1}
-  10.0.0.2: {hostname: node1.example.com, ip: 10.0.0.2, public_hostname: node1.example.com, public_ip: 192.168.0.2}
-  10.0.0.3: {hostname: node2.example.com, ip: 10.0.0.3, public_hostname: node2.example.com, public_ip: 192.168.0.3}
-"""
-
 CONFIG_INCOMPLETE_FACTS = """
-masters: [10.0.0.1]
-nodes: [10.0.0.1, 10.0.0.2, 10.0.0.3]
-validated_facts:
-  10.0.0.1: {hostname: master.example.com, ip: 10.0.0.1, public_hostname: master.example.com, public_ip: 192.168.0.1}
-  10.0.0.2: {hostname: node1.example.com, ip: 10.0.0.2}
+hosts:
+  - ip: 10.0.0.1
+    hostname: master-private.example.com
+    public_ip: 24.222.0.1
+    public_hostname: master.example.com
+    master: true
+  - ip: 10.0.0.2
+    hostname: node1-private.example.com
+    public_ip: 24.222.0.2
+    node: true
+  - ip: 10.0.0.3
+    node: true
 """
 
 
@@ -65,6 +85,11 @@ class OOConfigTests(OOCliFixture):
             'ooinstall.conf'), SAMPLE_CONFIG)
         ooconfig = OOConfig(cfg_path)
 
+        self.assertEquals(3, len(ooconfig.hosts))
+        self.assertEquals("10.0.0.1", ooconfig.hosts[0].name)
+        self.assertEquals("10.0.0.1", ooconfig.hosts[0].ip)
+        self.assertEquals("master-private.example.com", ooconfig.hosts[0].hostname)
+
         masters = ooconfig.settings['masters']
         self.assertEquals(1, len(masters))
         self.assertEquals("10.0.0.1", masters[0])
@@ -74,17 +99,51 @@ class OOConfigTests(OOCliFixture):
 
     def test_load_complete_validated_facts(self):
         cfg_path = self.write_config(os.path.join(self.work_dir,
-            'ooinstall.conf'), CONFIG_COMPLETE_FACTS)
+            'ooinstall.conf'), SAMPLE_CONFIG)
         ooconfig = OOConfig(cfg_path)
         missing_host_facts = ooconfig.calc_missing_facts()
         self.assertEquals(0, len(missing_host_facts))
 
-    def test_load_incomplete_validated_facts(self):
+    # TODO: test missing ip and hostname, which implies an error:
+    def test_load_host_no_ip_or_hostname(self):
+        pass
+
+    # TODO: test neither master nor node specified:
+    def test_load_host_no_master_or_node_specified(self):
+        pass
+
+    # Test missing optional facts the user must confirm:
+    def test_load_host_incomplete_facts(self):
         cfg_path = self.write_config(os.path.join(self.work_dir,
             'ooinstall.conf'), CONFIG_INCOMPLETE_FACTS)
         ooconfig = OOConfig(cfg_path)
         missing_host_facts = ooconfig.calc_missing_facts()
         self.assertEquals(2, len(missing_host_facts))
-        self.assertEquals(2, len(missing_host_facts['10.0.0.2']))
-        self.assertEquals(4, len(missing_host_facts['10.0.0.3']))
+        self.assertEquals(1, len(missing_host_facts['10.0.0.2']))
+        self.assertEquals(3, len(missing_host_facts['10.0.0.3']))
+
+    def test_write_config(self):
+        cfg_path = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), SAMPLE_CONFIG)
+        ooconfig = OOConfig(cfg_path)
+        ooconfig.save_to_disk()
+
+        f = open(cfg_path, 'r')
+        written_config = yaml.safe_load(f.read())
+        f.close()
+
+        self.assertEquals(3, len(written_config['hosts']))
+        for h in written_config['hosts']:
+            self.assertTrue('ip' in h)
+            self.assertTrue('public_ip' in h)
+            self.assertTrue('hostname' in h)
+            self.assertTrue('public_hostname' in h)
+
+        self.assertTrue('ansible_ssh_user' in written_config)
+
+        # Some advanced settings should not get written out if they
+        # were not specified by the user:
+        self.assertFalse('ansible_inventory_directory' in written_config)
+
+
 

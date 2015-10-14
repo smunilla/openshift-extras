@@ -32,13 +32,34 @@ DUMMY_SYSTEM_FACTS = {
     }
 }
 
-SAMPLE_CONFIG = """
+ASAMPLE_CONFIG = """
 deployment-type: enterprise
 masters: [192.168.1.1]
 nodes: [192.168.1.1, 192.168.1.2]
 validated_facts:
   192.168.1.1: {hostname: master.my.example.com, ip: 192.168.1.1, public_hostname: master.my.example.com, public_ip: 10.0.0.1}
   192.168.1.2: {hostname: node1.my.example.com, ip: 192.168.1.2, public_hostname: node1.my.example.com, public_ip: 10.0.0.2}"""
+
+SAMPLE_CONFIG = """
+deployment_type: enterprise
+hosts:
+  - ip: 10.0.0.1
+    hostname: master-private.example.com
+    public_ip: 24.222.0.1
+    public_hostname: master.example.com
+    master: true
+    node: true
+  - ip: 10.0.0.2
+    hostname: node1-private.example.com
+    public_ip: 24.222.0.2
+    public_hostname: node1.example.com
+    node: true
+  - ip: 10.0.0.3
+    hostname: node2-private.example.com
+    public_ip: 24.222.0.3
+    public_hostname: node2.example.com
+    node: true
+"""
 
 class UnattendedCliTests(OOCliFixture):
 
@@ -55,6 +76,7 @@ class UnattendedCliTests(OOCliFixture):
 
     def test_ansible_path_required(self):
         result = self.runner.invoke(cli.main, [])
+        print result.exception
         self.assertTrue(result.exit_code > 0)
         self.assertTrue("An ansible path must be provided", result.output)
 
@@ -81,7 +103,7 @@ class UnattendedCliTests(OOCliFixture):
 
         # Make sure we ran on the expected masters and nodes:
         # TODO: This needs to be addressed, I don't think these call args are permanent:
-        self.assertEquals((['192.168.1.1'], ['192.168.1.1', '192.168.1.2'], ['192.168.1.2', '192.168.1.1']),
+        self.assertEquals((['10.0.0.1'], ['10.0.0.1', '10.0.0.2', '10.0.0.3'], ['10.0.0.1', '10.0.0.3', '10.0.0.2']),
             run_playbook_mock.call_args[0])
 
         # Validate the config was written as we would expect at the end:
