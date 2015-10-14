@@ -13,6 +13,7 @@ def generate_inventory(masters, nodes):
     base_inventory = open(base_inventory_path, 'w')
     base_inventory.write('\n[OSEv3:children]\nmasters\nnodes\n')
     base_inventory.write('\n[OSEv3:vars]\n')
+    print "writing ssh user: %s" % CFG.settings['ansible_ssh_user']
     base_inventory.write('ansible_ssh_user={}\n'.format(CFG.settings['ansible_ssh_user']))
     if CFG.settings['ansible_ssh_user'] != 'root':
         base_inventory.write('ansible_sudo=true\n')

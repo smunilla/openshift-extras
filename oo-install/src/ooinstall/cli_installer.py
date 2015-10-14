@@ -328,14 +328,14 @@ Add new nodes here
     click.echo(message)
     return collect_hosts('new hosts')
 
-def is_already_installed(hosts, callback_facts):
+def is_already_installed(hosts, facts):
     installed_hosts = []
     for host in hosts:
         if(host in facts.keys() and 'common' in facts[host].keys() and facts[host]['common'].get('deployment_type', '')):
-            installed_hosts.apend(host)
+            installed_hosts.append(host)
     return installed_hosts
 
-def get_hosts_to_run_on(oo_cfg, facts):
+def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
     if oo_cfg.settings.get('additional_nodes', ''):
         hosts_to_run_on = oo_cfg.settings['additional_nodes']
     else:
@@ -453,7 +453,7 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
         click.echo("There was a problem fetching the required information.  Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
         sys.exit(1)
 
-    hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts)
+    hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force)
 
     # We already verified this is not the case for unattended installs, so this can
     # only trigger for live CLI users:
