@@ -95,7 +95,10 @@ def default_facts(masters, nodes):
 def run_main_playbook(masters, nodes, hosts_to_run_on):
     global CFG
     inventory_file = generate_inventory(masters, nodes)
-    main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/byo/config.yml')
+    if len(hosts_to_run_on) != len(nodes):
+        main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/common/openshift-cluster/scaleup.yml')
+    else:
+        main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/byo/config.yml')
     facts_env = os.environ.copy()
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']

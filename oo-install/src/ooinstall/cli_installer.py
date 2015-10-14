@@ -357,14 +357,14 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
         # present a message listing already installed hosts
         for master in installed_masters:
             click.echo("{} is already an OpenShift Master".format(master))
-            hosts_to_run_on.remove(master)
         for node in installed_nodes:
             click.echo("{} is already an OpenShift Node".format(node))
             hosts_to_run_on.remove(node)
         # for unattended either continue if they force install or exit if they didn't
         if unattended:
             if not force:
-                click.echo('Installed environment detected and no additional nodes specified: aborting. If you want a fresh install, use --force')
+                click.echo('Installed environment detected and no additional nodes specified: ' \
+                           'aborting. If you want a fresh install, use --force')
                 sys.exit(1)
         # for attended ask the user what to do
         else:
