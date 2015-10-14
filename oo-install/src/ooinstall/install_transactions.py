@@ -93,7 +93,7 @@ def default_facts(masters, nodes):
     return load_system_facts(inventory_file, os_facts_path, facts_env)
 
 
-def run_main_playbook(masters, nodes, hosts_to_run_one):
+def run_main_playbook(masters, nodes, hosts_to_run_on):
     global CFG
     inventory_file = generate_inventory(masters, nodes)
     main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/byo/config.yml')
