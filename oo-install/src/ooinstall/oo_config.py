@@ -6,7 +6,6 @@ PERSIST_SETTINGS=[
     'masters',
     'nodes',
     'ansible_ssh_user',
-    'ansible_plugins_directory',
     'ansible_inventory_directory',
     'ansible_log_path',
     'validated_facts',
@@ -36,8 +35,6 @@ class OOConfig(object):
         self.set_defaults()
 
     def set_defaults(self):
-        if not 'ansible_plugins_directory' in self.settings:
-            self.settings['ansible_plugins_directory'] = resource_filename(__name__, 'ansible_plugins')
         if not 'ansible_inventory_directory' in self.settings:
             self.settings['ansible_inventory_directory'] = os.path.normpath(os.path.dirname(self.config_path) + "/.ansible")
         if not os.path.exists(self.settings['ansible_inventory_directory']):

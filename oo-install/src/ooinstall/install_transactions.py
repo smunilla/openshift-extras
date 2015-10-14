@@ -87,7 +87,6 @@ def default_facts(masters, nodes):
 
     facts_env = os.environ.copy()
     facts_env["OO_INSTALL_CALLBACK_FACTS_YAML"] = CFG.settings['ansible_callback_facts_yaml']
-    facts_env["ANSIBLE_CALLBACK_PLUGINS"] = CFG.settings['ansible_plugins_directory']
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']
     return load_system_facts(inventory_file, os_facts_path, facts_env)
