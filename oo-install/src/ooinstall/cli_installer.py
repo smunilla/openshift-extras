@@ -404,12 +404,6 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
                               readable=True),
               # callback=validate_ansible_dir,
               envvar='OO_ANSIBLE_PLAYBOOK_DIRECTORY')
-@click.option('--ansible-config',
-              type=click.Path(file_okay=True,
-                              dir_okay=False,
-                              writable=True,
-                              readable=True),
-              default=None)
 @click.option('--ansible-log-path',
               type=click.Path(file_okay=True,
                               dir_okay=False,
@@ -424,7 +418,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
 @click.option('--force', '-f', is_flag=True, default=False)
 # TODO: This probably needs to be updated now that hosts -> masters/nodes
 @click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
-def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, deployment_type, unattended, hosts, force):
+def main(configuration, ansible_playbook_directory, ansible_log_path, deployment_type, unattended, hosts, force):
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:

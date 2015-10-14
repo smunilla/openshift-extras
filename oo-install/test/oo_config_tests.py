@@ -6,7 +6,6 @@ import shutil
 from ooinstall.oo_config import OOConfig
 
 SAMPLE_CONFIG = """
-ansible_config: /tmp/oo-install-ose-20151006-1249/lib/python2.7/site-packages/ooinstall/ansible.cfg
 deployment-type: enterprise
 masters: [10.0.0.1]
 nodes: [10.0.0.1, 10.0.0.2, 10.0.0.3]
