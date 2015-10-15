@@ -131,6 +131,8 @@ class OOConfig(object):
                 self._default_ansible_inv_dir()
         if not os.path.exists(self.settings['ansible_inventory_directory']):
             os.makedirs(self.settings['ansible_inventory_directory'])
+        if not 'ansible_plugins_directory' in self.settings:
+            self.settings['ansible_plugins_directory'] = resource_filename(__name__, 'ansible_plugins')
 
         if not 'ansible_callback_facts_yaml' in self.settings:
             self.settings['ansible_callback_facts_yaml'] = '{}/callback_facts.yaml'.format(self.settings['ansible_inventory_directory'])
