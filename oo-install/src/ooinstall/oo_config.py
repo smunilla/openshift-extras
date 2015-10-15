@@ -96,8 +96,6 @@ class OOConfig(object):
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(host))
                 self._add_legacy_backward_compat_settings()
-            else:
-                self.install_default()
         except IOError, ferr:
             raise OOConfigFileError('Cannot open config file "{}": {}'.format(ferr.filename, ferr.strerror))
         except yaml.scanner.ScannerError:
@@ -195,13 +193,3 @@ class OOConfig(object):
     def __str__(self):
         return self.yaml()
 
-    # TODO: we shouldn't write to disk here afaict, that happens at the end of the process, no need for a write because we're using totally default (empty) settings.
-    def install_default(self):
-        config_template = resource_string(__name__, 'installer.cfg.template.yml')
-        cfg_dir, cfg_file = os.path.split(self.config_path)
-        if not os.path.exists(cfg_dir):
-            os.makedirs(cfg_dir)
-        out_file = open(self.config_path, 'w')
-        out_file.write(config_template)
-        self.settings = yaml.safe_load(config_template)
-        out_file.close()

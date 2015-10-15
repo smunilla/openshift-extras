@@ -1,5 +1,0 @@
----
-deployment_type:
-ansible_ssh_user:
-masters:
-nodes:
