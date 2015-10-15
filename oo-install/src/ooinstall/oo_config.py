@@ -35,7 +35,7 @@ class Host(object):
         self.containerized = yaml_props.get('containerized', False)
 
         if self.ip is None and self.hostname is None:
-            raise OOConfigInvalidHostError()
+            raise OOConfigInvalidHostError("You must specify either 'ip' or 'hostname'")
 
         if self.master is False and self.node is False:
             raise OOConfigInvalidHostError(

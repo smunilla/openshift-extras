@@ -4,7 +4,7 @@ import tempfile
 import shutil
 import yaml
 
-from ooinstall.oo_config import OOConfig
+from ooinstall.oo_config import OOConfig, Host, OOConfigInvalidHostError
 
 SAMPLE_CONFIG = """
 deployment_type: enterprise
@@ -97,20 +97,21 @@ class OOConfigTests(OOCliFixture):
         self.assertEquals(["10.0.0.1", "10.0.0.2", "10.0.0.3"],
             ooconfig.settings['nodes'])
 
+        self.assertEquals('enterprise', ooconfig.settings['deployment_type'])
+
+    def test_load_config_defaults(self):
+        # Test settings not specified in the config:
+        cfg_path = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), SAMPLE_CONFIG)
+        ooconfig = OOConfig(cfg_path)
+        self.assertEquals('root', ooconfig.settings['ansible_ssh_user'])
+
     def test_load_complete_validated_facts(self):
         cfg_path = self.write_config(os.path.join(self.work_dir,
             'ooinstall.conf'), SAMPLE_CONFIG)
         ooconfig = OOConfig(cfg_path)
         missing_host_facts = ooconfig.calc_missing_facts()
         self.assertEquals(0, len(missing_host_facts))
-
-    # TODO: test missing ip and hostname, which implies an error:
-    def test_load_host_no_ip_or_hostname(self):
-        pass
-
-    # TODO: test neither master nor node specified:
-    def test_load_host_no_master_or_node_specified(self):
-        pass
 
     # Test missing optional facts the user must confirm:
     def test_load_host_incomplete_facts(self):
@@ -144,6 +145,27 @@ class OOConfigTests(OOCliFixture):
         # Some advanced settings should not get written out if they
         # were not specified by the user:
         self.assertFalse('ansible_inventory_directory' in written_config)
+
+
+class HostTests(OOCliFixture):
+
+    def test_load_host_no_ip_or_hostname(self):
+        yaml_props = {
+            'public_ip': '192.168.0.1',
+            'public_hostname': 'a.example.com',
+            'master': True
+        }
+        self.assertRaises(OOConfigInvalidHostError, Host, yaml_props)
+
+    def test_load_host_no_master_or_node_specified(self):
+        yaml_props = {
+            'ip': '192.168.0.1',
+            'hostname': 'a.example.com',
+            'public_ip': '192.168.0.1',
+            'public_hostname': 'a.example.com',
+        }
+        self.assertRaises(OOConfigInvalidHostError, Host, yaml_props)
+
 
 
 
