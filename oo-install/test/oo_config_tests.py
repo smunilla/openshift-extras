@@ -155,7 +155,7 @@ class HostTests(OOCliFixture):
             'public_hostname': 'a.example.com',
             'master': True
         }
-        self.assertRaises(OOConfigInvalidHostError, Host, yaml_props)
+        self.assertRaises(OOConfigInvalidHostError, Host, **yaml_props)
 
     def test_load_host_no_master_or_node_specified(self):
         yaml_props = {
@@ -164,7 +164,7 @@ class HostTests(OOCliFixture):
             'public_ip': '192.168.0.1',
             'public_hostname': 'a.example.com',
         }
-        self.assertRaises(OOConfigInvalidHostError, Host, yaml_props)
+        self.assertRaises(OOConfigInvalidHostError, Host, **yaml_props)
 
 
 

@@ -1,12 +1,13 @@
 import os
 import yaml
-from pkg_resources import resource_string, resource_filename
+from pkg_resources import resource_filename
 
-PERSIST_SETTINGS=[
+PERSIST_SETTINGS = [
     'ansible_ssh_user',
     'ansible_log_path',
     ]
 REQUIRED_FACTS = ['ip', 'public_ip', 'hostname', 'public_hostname']
+
 
 class OOConfigFileError(Exception):
     """The provided config file path can't be read/written
@@ -21,18 +22,18 @@ class OOConfigInvalidHostError(Exception):
 
 class Host(object):
     """ A system we will or have installed OpenShift on. """
-    def __init__(self, yaml_props):
-        self.ip = yaml_props.get('ip', None)
-        self.hostname = yaml_props.get('hostname', None)
-        self.public_ip = yaml_props.get('public_ip', None)
-        self.public_hostname = yaml_props.get('public_hostname', None)
+    def __init__(self, **kwargs):
+        self.ip = kwargs.get('ip', None)
+        self.hostname = kwargs.get('hostname', None)
+        self.public_ip = kwargs.get('public_ip', None)
+        self.public_hostname = kwargs.get('public_hostname', None)
 
         # Should this host run as an OpenShift master:
-        self.master = yaml_props.get('master', False)
+        self.master = kwargs.get('master', False)
 
         # Should this host run as an OpenShift node:
-        self.node = yaml_props.get('node', False)
-        self.containerized = yaml_props.get('containerized', False)
+        self.node = kwargs.get('node', False)
+        self.containerized = kwargs.get('containerized', False)
 
         if self.ip is None and self.hostname is None:
             raise OOConfigInvalidHostError("You must specify either 'ip' or 'hostname'")
@@ -94,7 +95,7 @@ class OOConfig(object):
                 # Parse the hosts into DTO objects:
                 if 'hosts' in self.settings:
                     for host in self.settings['hosts']:
-                        self.hosts.append(Host(host))
+                        self.hosts.append(Host(**host))
                 self._add_legacy_backward_compat_settings()
         except IOError, ferr:
             raise OOConfigFileError('Cannot open config file "{}": {}'.format(ferr.filename, ferr.strerror))
@@ -131,10 +132,10 @@ class OOConfig(object):
                 self._default_ansible_inv_dir()
         if not os.path.exists(self.settings['ansible_inventory_directory']):
             os.makedirs(self.settings['ansible_inventory_directory'])
-        if not 'ansible_plugins_directory' in self.settings:
+        if 'ansible_plugins_directory' not in self.settings:
             self.settings['ansible_plugins_directory'] = resource_filename(__name__, 'ansible_plugins')
 
-        if not 'ansible_callback_facts_yaml' in self.settings:
+        if 'ansible_callback_facts_yaml' not in self.settings:
             self.settings['ansible_callback_facts_yaml'] = '{}/callback_facts.yaml'.format(self.settings['ansible_inventory_directory'])
 
         if 'ansible_ssh_user' not in self.settings:

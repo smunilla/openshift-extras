@@ -470,7 +470,7 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, deployment
             else:
                 host_props['hostname'] = hostname
             host_props['master'] = True
-            host = Host(host_props)
+            host = Host(**host_props)
             oo_cfg.hosts.append(host)
 
         # Flag it as master/node appropriately:
