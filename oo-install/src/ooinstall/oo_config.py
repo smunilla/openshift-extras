@@ -82,6 +82,7 @@ class OOConfig(object):
         self.set_defaults()
 
     def read_config(self, is_new=False):
+        self.hosts = []
         try:
             new_settings = None
             if os.path.exists(self.config_path):
@@ -91,7 +92,6 @@ class OOConfig(object):
             if new_settings:
                 self.settings = new_settings
                 # Parse the hosts into DTO objects:
-                self.hosts = []
                 if 'hosts' in self.settings:
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(host))
@@ -195,3 +195,8 @@ class OOConfig(object):
     def __str__(self):
         return self.yaml()
 
+    def get_host(self, name):
+        for host in self.hosts:
+            if host.name == name:
+                return host
+        return None

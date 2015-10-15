@@ -1,9 +1,9 @@
 import click
 import re
-import os
 import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
+from oo_config import Host
 
 class InstallerInfo(object):
     def __init__(self, ansible_ssh_user=None, deployment_type=None, masters=None, nodes=None):
@@ -258,12 +258,12 @@ def error_if_missing_info(oo_cfg):
     missing_info = False
     if 'masters' not in oo_cfg.settings or len(oo_cfg.settings['masters']) == 0:
         missing_info = True
-        click.echo('For unattended installs, masters must be specified on the'
+        click.echo('For unattended installs, masters must be specified on the '
                    'command line or in the config file: %s' % oo_cfg.config_path)
 
     if 'nodes' not in oo_cfg.settings or len(oo_cfg.settings['nodes']) == 0:
         missing_info = True
-        click.echo('For unattended installs, nodes must be specified on the'
+        click.echo('For unattended installs, nodes must be specified on the '
                    'command line or in the config file: %s' % oo_cfg.config_path)
 
     missing_facts = oo_cfg.calc_missing_facts()
@@ -388,6 +388,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
 
     return hosts_to_run_on, callback_facts
 
+
 @click.command()
 @click.option('--configuration', '-c',
               type=click.Path(file_okay=True,
@@ -454,10 +455,38 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, deployment
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
 
+    # TODO: Hack to be removed with the UI refactor:
+    # We now have a list of strings for masters/nodes, add Host entries to
+    # oo_config if necessary, make sure to check if each string looks like
+    # an IP or a hostname so we can set appropriate property on the Host:
+    ip_regex = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    all_hostnames = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
+    for hostname in all_hostnames:
+        # Create a host if one doesn't exist:
+        if oo_cfg.get_host(hostname) is None:
+            host_props = {}
+            if ip_regex.match(hostname):
+                host_props['ip'] = hostname
+            else:
+                host_props['hostname'] = hostname
+            host_props['master'] = True
+            host = Host(host_props)
+            oo_cfg.hosts.append(host)
+
+        # Flag it as master/node appropriately:
+        host = oo_cfg.get_host(hostname)
+        if hostname in oo_cfg.settings['masters']:
+            host.master = True
+        if hostname in oo_cfg.settings['nodes']:
+            host.node = True
+
+
 
     # TODO: Technically we should make sure all the hosts are listed in the
     # validated facts.
     click.echo('Gathering information from hosts...')
+    print oo_cfg.settings['masters']
+    print oo_cfg.settings['nodes']
     callback_facts, error = install_transactions.default_facts(
         oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
     if error:
@@ -477,6 +506,29 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, deployment
                                                        oo_cfg.settings['nodes'])), callback_facts)
         if validated_facts:
             oo_cfg.settings['validated_facts'] = validated_facts
+
+
+
+        # TODO: This is a total hack that Sam will save us from with the UI refactor:
+        # We now have a complete list of masters/nodes and validated facts, trash
+        # whatever hosts we had on the config and update them for the settings we just
+        # accumulated.
+        # Eventually we'll just get Host objects from the user and add them to the config.
+        for hostname in validated_facts:
+            # We know there's a Host object from earlier block:
+            host = oo_cfg.get_host(hostname)
+
+            host_props = validated_facts[hostname]
+            host.ip = host_props['ip']
+            host.public_ip = host_props['public_ip']
+            host.hostname = host_props['hostname']
+            host.public_hostname = host_props['public_hostname']
+
+    # TODO: Temporary hack as well
+    # Reset the backward compatability settings:
+    oo_cfg._add_legacy_backward_compat_settings()
+
+
 
     click.echo('Writing updated config to: %s' % oo_cfg.config_path)
     oo_cfg.save_to_disk()
