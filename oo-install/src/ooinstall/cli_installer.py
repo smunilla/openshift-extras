@@ -343,7 +343,7 @@ def get_installed_hosts(hosts, callback_facts):
     for host in hosts:
         if(host in callback_facts.keys()
            and 'common' in callback_facts[host].keys()
-           and callback_facts[host]['common'].get('deployment_type', '')):
+           and callback_facts[host]['common'].get('version', '')):
             installed_hosts.append(host)
     return installed_hosts
 
