@@ -1,10 +1,8 @@
 
 import os
-import yaml
 import ConfigParser
 
 import ooinstall.cli_installer as cli
-import ooinstall.install_transactions
 
 from click.testing import CliRunner
 from oo_config_tests import OOCliFixture
@@ -31,14 +29,6 @@ DUMMY_SYSTEM_FACTS = {
         }
     }
 }
-
-ASAMPLE_CONFIG = """
-deployment-type: enterprise
-masters: [192.168.1.1]
-nodes: [192.168.1.1, 192.168.1.2]
-validated_facts:
-  192.168.1.1: {hostname: master.my.example.com, ip: 192.168.1.1, public_hostname: master.my.example.com, public_ip: 10.0.0.1}
-  192.168.1.2: {hostname: node1.my.example.com, ip: 192.168.1.2, public_hostname: node1.my.example.com, public_ip: 10.0.0.2}"""
 
 SAMPLE_CONFIG = """
 deployment_type: enterprise
@@ -74,11 +64,18 @@ class UnattendedCliTests(OOCliFixture):
     def run_cli(self):
         return self.runner.invoke(cli.main, self.cli_args)
 
+    def assert_result(self, result, exit_code):
+        if result.exception is not None or result.exit_code != exit_code:
+            print("Unexpected result from CLI execution")
+            print("Exit code: %s" % result.exit_code)
+            print("Exception: %s" % result.exception)
+            print("Output:\n%s" % result.output)
+            self.assertTrue("Exception during CLI execution", False)
+
     def test_ansible_path_required(self):
         result = self.runner.invoke(cli.main, [])
-        print result.exception
-        self.assertTrue(result.exit_code > 0)
-        self.assertTrue("An ansible path must be provided", result.output)
+        self.assert_result(result, 1)
+        self.assertTrue("An ansible path must be provided" in result.output)
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
@@ -91,27 +88,25 @@ class UnattendedCliTests(OOCliFixture):
 
         self.cli_args.extend(["-c", config_file])
         result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
 
         load_facts_args = load_facts_mock.call_args[0]
-        self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"), load_facts_args[0])
-        self.assertEquals(os.path.join(self.work_dir, "playbooks/byo/openshift_facts.yml"), load_facts_args[1])
+        self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
+            load_facts_args[0])
+        self.assertEquals(os.path.join(self.work_dir,
+            "playbooks/byo/openshift_facts.yml"), load_facts_args[1])
         env_vars = load_facts_args[2]
-        self.assertEquals(os.path.join(self.work_dir, '.ansible/callback_facts.yaml'),
+        self.assertEquals(os.path.join(self.work_dir,
+            '.ansible/callback_facts.yaml'),
             env_vars['OO_INSTALL_CALLBACK_FACTS_YAML'])
         self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
-        self.assertEquals(0, result.exit_code)
 
         # Make sure we ran on the expected masters and nodes:
         # TODO: This needs to be addressed, I don't think these call args are permanent:
-        self.assertEquals((['10.0.0.1'], ['10.0.0.1', '10.0.0.2', '10.0.0.3'], ['10.0.0.1', '10.0.0.3', '10.0.0.2']),
+        self.assertEquals((['10.0.0.1'],
+            ['10.0.0.1', '10.0.0.2', '10.0.0.3'],
+            ['10.0.0.1', '10.0.0.3', '10.0.0.2']),
             run_playbook_mock.call_args[0])
-
-        # Validate the config was written as we would expect at the end:
-        f = open(config_file)
-        # Raw yaml to keep OOConfig defaults out of the way and see exactly what was written:
-        new_config_yaml = yaml.safe_load(f.read())
-        f.close()
-        # TODO:
 
     #@patch('ooinstall.install_transactions.run_main_playbook')
     #@patch('ooinstall.install_transactions.load_system_facts')
@@ -154,7 +149,7 @@ class UnattendedCliTests(OOCliFixture):
         # Check the inventory file looks as we would expect:
         inventory = ConfigParser.ConfigParser(allow_no_value=True)
         inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
-        self.assertEquals('bob', inventory.get('OSEv3:vars', 'ansible_ssh_user'))
-        self.assertEquals('openshift', inventory.get('OSEv3:vars', 'product_type'))
-
-
+        self.assertEquals('bob',
+            inventory.get('OSEv3:vars', 'ansible_ssh_user'))
+        self.assertEquals('openshift',
+            inventory.get('OSEv3:vars', 'product_type'))
