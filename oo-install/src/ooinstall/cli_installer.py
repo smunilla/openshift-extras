@@ -249,15 +249,21 @@ def confirm_continue(message):
 
 def error_if_missing_info(oo_cfg):
     missing_info = False
-    if 'masters' not in oo_cfg.settings or len(oo_cfg.settings['masters']) == 0:
+    if not oo_cfg.hosts:
         missing_info = True
-        click.echo('For unattended installs, masters must be specified on the '
+        click.echo('For unattended installs, hosts must be specified on the '
                    'command line or in the config file: %s' % oo_cfg.config_path)
 
-    if 'nodes' not in oo_cfg.settings or len(oo_cfg.settings['nodes']) == 0:
-        missing_info = True
-        click.echo('For unattended installs, nodes must be specified on the '
-                   'command line or in the config file: %s' % oo_cfg.config_path)
+    # Lookup a Product based on the key we were given:
+    if not oo_cfg.settings['product']:
+        click.echo("No product specified in configuration file.")
+        sys.exit(1)
+
+    product = find_product(oo_cfg.settings['product'])
+    if product is None:
+        click.echo("%s is not an installable product." %
+            oo_cfg.settings['product'])
+        sys.exit(1)
 
     missing_facts = oo_cfg.calc_missing_facts()
     if len(missing_facts) > 0:
@@ -301,20 +307,13 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
         oo_cfg.settings['ansible_ssh_user'] = get_ansible_ssh_user()
         click.clear()
 
-    if product_key == '':
-        product_key = get_product(product_key)
-        click.clear()
-
-    if not oo_cfg.settings.get('deployment_type', ''):
-        oo_cfg.deployment_type = get_deployment_type()
-        click.clear()
-
     if not oo_cfg.hosts:
         oo_cfg.hosts = collect_hosts()
         click.clear()
 
-    if not oo_cfg.settings.get('product', '')
+    if not oo_cfg.settings.get('product', ''):
         oo_cfg.settings['product'] = get_product()
+        click.clear()
 
     return oo_cfg
 
@@ -419,15 +418,6 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     else:
         oo_cfg = get_missing_info_from_user(oo_cfg)
 
-    # Lookup a Product based on the key we were given:
-    if not oo_cfg.settings['product']:
-        click.echo("No product specified in configuration file.")
-        sys.exit(1)
-    product = find_product(oo_cfg.settings['product'])
-    if product is None:
-        click.echo("%s is not an installable product." %
-            oo_cfg.settings['product'])
-        sys.exit(1)
 
     # TODO: Hack to be removed with the UI refactor:
     # We now have a list of strings for masters/nodes, add Host entries to
