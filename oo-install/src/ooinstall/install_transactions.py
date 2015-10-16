@@ -34,7 +34,7 @@ def generate_inventory(masters, nodes):
         # TODO: Until the Master can run the SDN itself we have to configure the Masters
         # as Nodes too.
         scheduleable = True
-        if n in masters:
+        if n in masters and len(masters) != 1:  # If there's only one Node and it's also a Master we want it to be scheduleable
             scheduleable = False
         write_host(n, base_inventory, scheduleable)
     base_inventory.close()
