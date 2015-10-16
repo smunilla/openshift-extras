@@ -1,6 +1,9 @@
 import subprocess
 import os
 import yaml
+from products import find_product
+
+CFG = None
 
 def set_config(cfg):
     global CFG
@@ -8,7 +11,6 @@ def set_config(cfg):
 
 def generate_inventory(masters, nodes):
     global CFG
-    ansible_inventory_directory = CFG.settings['ansible_inventory_directory']
     base_inventory_path = CFG.settings['ansible_inventory_path']
     base_inventory = open(base_inventory_path, 'w')
     base_inventory.write('\n[OSEv3:children]\nmasters\nnodes\n')
@@ -17,7 +19,10 @@ def generate_inventory(masters, nodes):
     base_inventory.write('ansible_ssh_user={}\n'.format(CFG.settings['ansible_ssh_user']))
     if CFG.settings['ansible_ssh_user'] != 'root':
         base_inventory.write('ansible_sudo=true\n')
-    base_inventory.write('deployment_type={}\n'.format(CFG.deployment_type))
+
+    # Find the correct deployment type for ansible:
+    prod = find_product(CFG.settings['product'])
+    base_inventory.write('deployment_type={}\n'.format(prod.ansible_key))
     # TODO: Support AEP!
     base_inventory.write('product_type=openshift\n')
     if 'OO_INSTALL_DEVEL_REGISTRY' in os.environ:

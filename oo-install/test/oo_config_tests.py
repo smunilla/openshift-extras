@@ -7,7 +7,7 @@ import yaml
 from ooinstall.oo_config import OOConfig, Host, OOConfigInvalidHostError
 
 SAMPLE_CONFIG = """
-deployment_type: enterprise
+product: enterprise
 hosts:
   - ip: 10.0.0.1
     hostname: master-private.example.com
@@ -25,14 +25,6 @@ hosts:
     public_ip: 24.222.0.3
     public_hostname: node2.example.com
     node: true
-"""
-
-LEGACY_CONFIG = """
-deployment_type: enterprise
-masters: [10.0.0.1]
-nodes: [10.0.0.1, 10.0.0.2, 10.0.0.3]
-validated_facts:
-  10.0.0.1: {hostname: private.example.com, ip: 10.0.0.1, public_hostname: public.example.com, public_ip: 192.168.0.1}
 """
 
 CONFIG_INCOMPLETE_FACTS = """
@@ -97,7 +89,7 @@ class OOConfigTests(OOCliFixture):
         self.assertEquals(["10.0.0.1", "10.0.0.2", "10.0.0.3"],
             ooconfig.settings['nodes'])
 
-        self.assertEquals('enterprise', ooconfig.settings['deployment_type'])
+        self.assertEquals('enterprise', ooconfig.settings['product'])
 
     def test_load_config_defaults(self):
         # Test settings not specified in the config:

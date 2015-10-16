@@ -4,11 +4,12 @@ import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
 from oo_config import Host
+from products import SUPPORTED_PRODUCTS, find_product
 
 class InstallerInfo(object):
-    def __init__(self, ansible_ssh_user=None, deployment_type=None, masters=None, nodes=None):
+    def __init__(self, ansible_ssh_user=None, product=None, masters=None, nodes=None):
         self.ansible_ssh_user = ansible_ssh_user
-        self.deployment_type = deployment_type
+        self.product_key = product
         self.masters = masters
         self.nodes = nodes
 
@@ -229,25 +230,19 @@ Notes:
         return default_facts
     return validated_facts
 
-def get_deployment_type(deployment_type):
-    #TODO: Wording obvs needs some work.
-    if deployment_type == '':
-        deployment_types = {1: 'enterprise',
-                            2: 'openshift-enterprise',
-                            3: 'atomic-enterprise',
-                           }
-        message = """
-Which product to you want to install?
+def get_product(product):
+    if product == '':
+        message = "\nWhich product to you want to install?\n\n"
 
-(1) OpenShift Enterprise 3.0
-(2) OpenShift Enterprise 3.1
-(3) Atomic Enterprise 3.1
-"""
+        i = 1
+        for product in SUPPORTED_PRODUCTS:
+            message = "%s\n(%s) %s" % (message, i, product.description)
+
         click.echo(message)
         response = click.prompt("Choose a product from above: ", default=1)
-        deployment_type = deployment_types[response]
+        product = SUPPORTED_PRODUCTS[response - 1].key
 
-    return deployment_type
+    return product
 
 def confirm_continue(message):
     click.echo(message)
@@ -277,7 +272,7 @@ def error_if_missing_info(oo_cfg):
         sys.exit(1)
 
 
-def get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes):
+def get_info_from_user(ansible_ssh_user, product_key, masters, nodes):
     """ Prompts the user for any information missing from the given configuration. """
     installer_info = InstallerInfo()
     click.clear()
@@ -309,8 +304,8 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
         ansible_ssh_user = get_ansible_ssh_user()
         click.clear()
 
-    if deployment_type == '':
-        deployment_type = get_deployment_type(deployment_type)
+    if product_key == '':
+        product_key = get_product(product_key)
         click.clear()
 
     # TODO: Until the Master can run the SDN itself we have to configure the Masters
@@ -323,7 +318,7 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
 
     installer_info.masters = masters
     installer_info.nodes = nodes
-    installer_info.deployment_type = deployment_type
+    installer_info.product_key = product_key
     installer_info.ansible_ssh_user = ansible_ssh_user
 
     return installer_info
@@ -388,7 +383,6 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
 
     return hosts_to_run_on, callback_facts
 
-
 @click.command()
 @click.option('--configuration', '-c',
               type=click.Path(file_okay=True,
@@ -411,15 +405,13 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
                               writable=True,
                               readable=True),
               default="/tmp/ansible.log")
-@click.option('--deployment-type',
-              '-t',
-              type=click.Choice(['origin', 'online', 'enterprise', 'atomic-enterprise', 'openshift-enterprise']),
-              default=None)
 @click.option('--unattended', '-u', is_flag=True, default=False)
 @click.option('--force', '-f', is_flag=True, default=False)
 # TODO: This probably needs to be updated now that hosts -> masters/nodes
 @click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
-def main(configuration, ansible_playbook_directory, ansible_log_path, deployment_type, unattended, hosts, force):
+def main(configuration, ansible_playbook_directory, ansible_log_path,
+    unattended, hosts, force):
+
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:
@@ -438,22 +430,28 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, deployment
     nodes = oo_cfg.settings.setdefault('nodes', hosts)
     ansible_ssh_user = oo_cfg.settings.get('ansible_ssh_user', '')
 
-    # TODO: This reverts the above assumption and here the CLI is authoritative. Should
-    # probably make this consider config the authoritative source as well. Print a warning
-    # if both are specified.
-    if not deployment_type:
-        deployment_type = oo_cfg.settings.get('deployment_type', '')
+    product_key = oo_cfg.settings.get('product', '')
 
     if unattended:
-        installer_info = InstallerInfo(ansible_ssh_user, deployment_type, masters, nodes)
+        installer_info = InstallerInfo(ansible_ssh_user, product_key, masters, nodes)
         error_if_missing_info(oo_cfg)
     else:
-        installer_info = get_info_from_user(ansible_ssh_user, deployment_type, masters, nodes)
+        installer_info = get_info_from_user(ansible_ssh_user, product_key, masters, nodes)
 
     oo_cfg.settings['ansible_ssh_user'] = installer_info.ansible_ssh_user
-    oo_cfg.deployment_type = installer_info.deployment_type
+    oo_cfg.settings['product'] = installer_info.product_key
     oo_cfg.settings['masters'] = installer_info.masters
     oo_cfg.settings['nodes'] = installer_info.nodes
+
+    # Lookup a Product based on the key we were given:
+    if not oo_cfg.settings['product']:
+        click.echo("No product specified in configuration file.")
+        sys.exit(1)
+    product = find_product(oo_cfg.settings['product'])
+    if product is None:
+        click.echo("%s is not an installable product." %
+            oo_cfg.settings['product'])
+        sys.exit(1)
 
     # TODO: Hack to be removed with the UI refactor:
     # We now have a list of strings for masters/nodes, add Host entries to
