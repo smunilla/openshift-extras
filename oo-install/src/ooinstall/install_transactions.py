@@ -9,7 +9,7 @@ def set_config(cfg):
     global CFG
     CFG = cfg
 
-def generate_inventory(masters, nodes):
+def generate_inventory(hosts):
     global CFG
     base_inventory_path = CFG.settings['ansible_inventory_path']
     base_inventory = open(base_inventory_path, 'w')
@@ -32,9 +32,11 @@ def generate_inventory(masters, nodes):
     if 'OO_INSTALL_STAGE_REGISTRY' in os.environ:
         base_inventory.write('oreg_url=registry.access.stage.redhat.com/openshift3/ose-${component}:${version}\n')
     base_inventory.write('\n[masters]\n')
+    masters = (master for master in hosts if master.master)
     for m in masters:
         write_host(m, base_inventory)
     base_inventory.write('\n[nodes]\n')
+    nodes = (node for node in hosts if node.node)
     for n in nodes:
         # TODO: Until the Master can run the SDN itself we have to configure the Masters
         # as Nodes too.
@@ -85,9 +87,9 @@ def load_system_facts(inventory_file, os_facts_path, env_vars):
     return callback_facts, 0
 
 
-def default_facts(masters, nodes):
+def default_facts(hosts):
     global CFG
-    inventory_file = generate_inventory(masters, nodes)
+    inventory_file = generate_inventory(hosts)
     os_facts_path = '{}/playbooks/byo/openshift_facts.yml'.format(CFG.ansible_playbook_directory)
 
     facts_env = os.environ.copy()
@@ -98,13 +100,15 @@ def default_facts(masters, nodes):
     return load_system_facts(inventory_file, os_facts_path, facts_env)
 
 
-def run_main_playbook(masters, nodes, hosts_to_run_on):
+def run_main_playbook(hosts, hosts_to_run_on):
     global CFG
-    inventory_file = generate_inventory(masters, nodes)
-    if len(hosts_to_run_on) != len(nodes):
-        main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/common/openshift-cluster/scaleup.yml')
+    inventory_file = generate_inventory(hosts)
+    if len(hosts_to_run_on) != len(hosts):
+        main_playbook_path = os.path.join(CFG.ansible_playbook_directory,
+                                          'playbooks/common/openshift-cluster/scaleup.yml')
     else:
-        main_playbook_path = os.path.join(CFG.ansible_playbook_directory, 'playbooks/byo/config.yml')
+        main_playbook_path = os.path.join(CFG.ansible_playbook_directory,
+                                          'playbooks/byo/config.yml')
     facts_env = os.environ.copy()
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']
