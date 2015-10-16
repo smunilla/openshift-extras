@@ -140,7 +140,7 @@ class OOConfig(object):
             self.settings['ansible_callback_facts_yaml'] = '{}/callback_facts.yaml'.format(self.settings['ansible_inventory_directory'])
 
         if 'ansible_ssh_user' not in self.settings:
-            self.settings['ansible_ssh_user'] = 'root'
+            self.settings['ansible_ssh_user'] = ''
 
         self.settings['ansible_inventory_path'] = '{}/hosts'.format(self.settings['ansible_inventory_directory'])
 
