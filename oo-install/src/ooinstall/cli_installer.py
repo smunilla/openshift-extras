@@ -132,10 +132,10 @@ environment can be overridden exporting the VISUAL environment variable.
     click.echo(message)
     click.pause()
     while True:
-        MARKER = '# Please enter {} one per line.  Hostnames or IPs are valid.\n'.format(host_type)
-        message = click.edit("\n".join(hosts) + '\n\n' + MARKER)
+        marker = '# Please enter {} one per line.  Hostnames or IPs are valid.\n'.format(host_type)
+        message = click.edit("\n".join(hosts) + '\n\n' + marker)
         if message is not None:
-            msg = message.split(MARKER, 1)[0].rstrip('\n')
+            msg = message.split(marker, 1)[0].rstrip('\n')
             hosts = msg.splitlines()
             if hosts:
                 # TODO: A lot more error handling needs to happen here.
@@ -199,27 +199,26 @@ Notes:
     validated_facts = {}
     for h in hosts:
         default_facts[h] = {}
-        default_facts[h]["ip"] = callback_facts[h]["common"]["ip"]
-        default_facts[h]["public_ip"] = callback_facts[h]["common"]["public_ip"]
-        default_facts[h]["hostname"] = callback_facts[h]["common"]["hostname"]
-        default_facts[h]['public_hostname'] = callback_facts[h]["common"]["public_hostname"]
+        h.ip = callback_facts[str(h)]["common"]["ip"]
+        h.public_ip = callback_facts[str(h)]["common"]["public_ip"]
+        h.hostname = callback_facts[str(h)]["common"]["hostname"]
+        h.public_hostname = callback_facts[str(h)]["common"]["public_hostname"]
 
         validated_facts[h] = {}
-        default_facts_lines.append(",".join([h,
-                                             callback_facts[h]["common"]["ip"],
-                                             callback_facts[h]["common"]["public_ip"],
-                                             callback_facts[h]["common"]["hostname"],
-                                             callback_facts[h]["common"]["public_hostname"]]))
+        default_facts_lines.append(",".join([h.ip,
+                                             h.public_ip,
+                                             h.hostname,
+                                             h.public_hostname]))
 
-    MARKER = '# Everything after this line is ignored.\n'
-    message = click.edit("\n".join(default_facts_lines) + '\n\n' + MARKER + notes)
+    marker = '# Everything after this line is ignored.\n'
+    message = click.edit("\n".join(default_facts_lines) + '\n\n' + marker + notes)
     if message is not None:
-        facts = message.split(MARKER, 1)[0].rstrip('\n')
+        facts = message.split(marker, 1)[0].rstrip('\n')
         facts_lines = facts.splitlines()
         # TODO: A lot more error handling needs to happen here.
         facts_lines = filter(None, facts_lines)
-        for l in facts_lines:
-            h, ip, public_ip, hostname, public_hostname = l.split(',')
+        for line in facts_lines:
+            ip, public_ip, hostname, public_hostname = line.split(',')
             validated_facts[h]["ip"] = ip.strip()
             validated_facts[h]["public_ip"] = public_ip.strip()
             validated_facts[h]["hostname"] = hostname.strip()
@@ -303,7 +302,7 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     confirm_continue(message)
     click.clear()
 
-    if not oo_cfg.settings.get('ansible_ssh_user', ''):
+    if oo_cfg.settings.get('ansible_ssh_user', '') == '':
         oo_cfg.settings['ansible_ssh_user'] = get_ansible_ssh_user()
         click.clear()
 
@@ -311,7 +310,7 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
         oo_cfg.hosts = collect_hosts()
         click.clear()
 
-    if not oo_cfg.settings.get('product', ''):
+    if oo_cfg.settings.get('product', '') == '':
         oo_cfg.settings['product'] = get_product()
         click.clear()
 
@@ -337,18 +336,18 @@ def get_installed_hosts(hosts, callback_facts):
     return installed_hosts
 
 def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
-    hosts_to_run_on = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
+    hosts_to_run_on = oo_cfg.hosts
 
     # Check if master or nodes already have something installed
-    installed_masters = get_installed_hosts(list(oo_cfg.settings['masters']), callback_facts)
-    installed_nodes = get_installed_hosts(list(oo_cfg.settings['nodes']), callback_facts)
-    if len(installed_masters) > 0 or len(installed_nodes) > 0:
+    installed_hosts = get_installed_hosts(oo_cfg.hosts, callback_facts)
+    if len(installed_hosts) > 0:
         # present a message listing already installed hosts
-        for master in installed_masters:
-            click.echo("{} is already an OpenShift Master".format(master))
-        for node in installed_nodes:
-            click.echo("{} is already an OpenShift Node".format(node))
-            hosts_to_run_on.remove(node)
+        for host in installed_hosts:
+            if host.master:
+                click.echo("{} is already an OpenShift Master".format(host))
+            elif host.node:
+                click.echo("{} is already an OpenShift Node".format(host))
+                hosts_to_run_on.remove(host)
         # for unattended either continue if they force install or exit if they didn't
         if unattended:
             if not force:
@@ -366,8 +365,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
                 hosts_to_run_on.append(new_nodes)
 
                 install_transactions.set_config(oo_cfg)
-                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],
-                                                                           oo_cfg.settings['nodes'])
+                callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
                 if error:
                     click.echo("There was a problem fetching the required information. " \
                                "See {} for details.".format(oo_cfg.settings['ansible_log_path']))
@@ -418,36 +416,6 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     else:
         oo_cfg = get_missing_info_from_user(oo_cfg)
 
-
-    # TODO: Hack to be removed with the UI refactor:
-    # We now have a list of strings for masters/nodes, add Host entries to
-    # oo_config if necessary, make sure to check if each string looks like
-    # an IP or a hostname so we can set appropriate property on the Host:
-    ip_regex = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
-    all_hostnames = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
-    for hostname in all_hostnames:
-        # Create a host if one doesn't exist:
-        if oo_cfg.get_host(hostname) is None:
-            host_props = {}
-            if ip_regex.match(hostname):
-                host_props['ip'] = hostname
-            else:
-                host_props['hostname'] = hostname
-            host_props['master'] = True
-            host = Host(**host_props)
-            oo_cfg.hosts.append(host)
-
-        # Flag it as master/node appropriately:
-        host = oo_cfg.get_host(hostname)
-        if hostname in oo_cfg.settings['masters']:
-            host.master = True
-        if hostname in oo_cfg.settings['nodes']:
-            host.node = True
-
-
-
-    # TODO: Technically we should make sure all the hosts are listed in the
-    # validated facts.
     click.echo('Gathering information from hosts...')
     callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
     if error:
@@ -463,33 +431,7 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     # to confirm the settings for new nodes. Look into this once we're distinguishing
     # between new and pre-existing nodes.
     if len(oo_cfg.calc_missing_facts()) > 0:
-        validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] +
-                                                       oo_cfg.settings['nodes'])), callback_facts)
-        if validated_facts:
-            oo_cfg.settings['validated_facts'] = validated_facts
-
-
-
-        # TODO: This is a total hack that Sam will save us from with the UI refactor:
-        # We now have a complete list of masters/nodes and validated facts, trash
-        # whatever hosts we had on the config and update them for the settings we just
-        # accumulated.
-        # Eventually we'll just get Host objects from the user and add them to the config.
-        for hostname in validated_facts:
-            # We know there's a Host object from earlier block:
-            host = oo_cfg.get_host(hostname)
-
-            host_props = validated_facts[hostname]
-            host.ip = host_props['ip']
-            host.public_ip = host_props['public_ip']
-            host.hostname = host_props['hostname']
-            host.public_hostname = host_props['public_hostname']
-
-    # TODO: Temporary hack as well
-    # Reset the backward compatability settings:
-    oo_cfg._add_legacy_backward_compat_settings()
-
-
+        validated_hosts = confirm_hosts_facts(oo_cfg.hosts, callback_facts)
 
     click.echo('Writing updated config to: %s' % oo_cfg.config_path)
     oo_cfg.save_to_disk()
@@ -501,8 +443,7 @@ If changes are needed to the values recorded by the installer please update {}.
     if not unattended:
         confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'],
-                                                   oo_cfg.settings['nodes'],
+    error = install_transactions.run_main_playbook(oo_cfg.hosts,
                                                    hosts_to_run_on)
     if error:
         # The bootstrap script will print out the log location.

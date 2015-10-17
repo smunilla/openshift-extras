@@ -32,18 +32,19 @@ def generate_inventory(hosts):
     if 'OO_INSTALL_STAGE_REGISTRY' in os.environ:
         base_inventory.write('oreg_url=registry.access.stage.redhat.com/openshift3/ose-${component}:${version}\n')
     base_inventory.write('\n[masters]\n')
-    masters = (master for master in hosts if master.master)
-    for m in masters:
-        write_host(m, base_inventory)
+    masters = (host for host in hosts if host.master)
+    for master in masters:
+        write_host(master, base_inventory)
     base_inventory.write('\n[nodes]\n')
-    nodes = (node for node in hosts if node.node)
-    for n in nodes:
+    nodes = (host for host in hosts if host.node)
+    for node in nodes:
         # TODO: Until the Master can run the SDN itself we have to configure the Masters
         # as Nodes too.
         scheduleable = True
-        if n in masters:
+        # If there's only one Node and it's also a Master we want it to be scheduleable:
+        if node in masters and len(masters) != 1:
             scheduleable = False
-        write_host(n, base_inventory, scheduleable)
+        write_host(node, base_inventory, scheduleable)
     base_inventory.close()
     return base_inventory_path
 
