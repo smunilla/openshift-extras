@@ -3,16 +3,12 @@
 """
 
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup
 # To use a consistent encoding
 from codecs import open
 from os import path
 
 here = path.abspath(path.dirname(__file__))
-
-# Get the long description from the relevant file
-with open(path.join(here, 'src', 'DESCRIPTION.rst'), encoding='utf-8') as f:
-    long_description = f.read()
 
 setup(
     name='ooinstall',
@@ -23,7 +19,6 @@ setup(
     version="3.0.0",
 
     description="Ansible wrapper for OpenShift Enterprise 3 installation.",
-    long_description=long_description,
 
     # The project's main homepage.
     url="http://github.com/openshift/openshift-extras/tree/enterprise-3.0/oo-install",
@@ -50,7 +45,7 @@ setup(
     # simple. Or you can use find_packages().
     #packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
     packages=['ooinstall'],
-    package_dir={'ooinstall': 'src/ooinstall'},
+    package_dir={'ooinstall': 'ooinstall'},
 
 
     # List run-time dependencies here.  These will be installed by pip when
