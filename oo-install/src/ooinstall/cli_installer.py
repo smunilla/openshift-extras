@@ -116,7 +116,7 @@ http://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/
             host_props['hostname'] = hostname_or_ip
 
         host_props['master'] = click.confirm('Will this host be an OpenShift Master?')
-        host_prods['node'] = True
+        host_props['node'] = True
 
         host = Host(**host_props)
 
