@@ -8,6 +8,7 @@ from ooinstall.oo_config import OOConfig, Host, OOConfigInvalidHostError
 
 SAMPLE_CONFIG = """
 product: enterprise
+ansible_ssh_user: root
 hosts:
   - ip: 10.0.0.1
     hostname: master-private.example.com
@@ -90,13 +91,6 @@ class OOConfigTests(OOCliFixture):
             ooconfig.settings['nodes'])
 
         self.assertEquals('enterprise', ooconfig.settings['product'])
-
-    def test_load_config_defaults(self):
-        # Test settings not specified in the config:
-        cfg_path = self.write_config(os.path.join(self.work_dir,
-            'ooinstall.conf'), SAMPLE_CONFIG)
-        ooconfig = OOConfig(cfg_path)
-        self.assertEquals('root', ooconfig.settings['ansible_ssh_user'])
 
     def test_load_complete_validated_facts(self):
         cfg_path = self.write_config(os.path.join(self.work_dir,

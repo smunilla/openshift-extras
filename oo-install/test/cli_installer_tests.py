@@ -33,6 +33,7 @@ DUMMY_SYSTEM_FACTS = {
 # Substitute in a product name before use:
 SAMPLE_CONFIG = """
 product: %s
+ansible_ssh_user: root
 hosts:
   - ip: 10.0.0.1
     hostname: master-private.example.com
@@ -104,10 +105,10 @@ class UnattendedCliTests(OOCliFixture):
 
         # Make sure we ran on the expected masters and nodes:
         # TODO: This needs to be addressed, I don't think these call args are permanent:
-        self.assertEquals((['10.0.0.1'],
-            ['10.0.0.1', '10.0.0.2', '10.0.0.3'],
-            ['10.0.0.1', '10.0.0.3', '10.0.0.2']),
-            run_playbook_mock.call_args[0])
+        hosts = run_playbook_mock.call_args[0][0]
+        hosts_to_run_on = run_playbook_mock.call_args[0][1]
+        self.assertEquals(3, len(hosts))
+        self.assertEquals(3, len(hosts_to_run_on))
 
     #@patch('ooinstall.install_transactions.run_main_playbook')
     #@patch('ooinstall.install_transactions.load_system_facts')
@@ -146,7 +147,8 @@ class UnattendedCliTests(OOCliFixture):
             'ooinstall.conf'), merged_config)
 
         self.cli_args.extend(["-c", config_file])
-        self.runner.invoke(cli.main, self.cli_args)
+        result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
 
         # Check the inventory file looks as we would expect:
         inventory = ConfigParser.ConfigParser(allow_no_value=True)
@@ -168,7 +170,8 @@ class UnattendedCliTests(OOCliFixture):
             'ooinstall.conf'), SAMPLE_CONFIG % 'enterprise')
 
         self.cli_args.extend(["-c", config_file])
-        self.runner.invoke(cli.main, self.cli_args)
+        result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
 
         # Check the inventory file looks as we would expect:
         inventory = ConfigParser.ConfigParser(allow_no_value=True)

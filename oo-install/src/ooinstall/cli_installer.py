@@ -168,7 +168,7 @@ def confirm_hosts_facts(hosts, callback_facts):
     click.clear()
     message = """
 A list of the facts gathered from the provided hosts follows. Because it is
-often the case that the hostname for a system inside the cluster is different 
+often the case that the hostname for a system inside the cluster is different
 from the hostname that is resolveable from command line or web clients
 these settings cannot be validated automatically.
 
@@ -249,6 +249,11 @@ def error_if_missing_info(oo_cfg):
         missing_info = True
         click.echo('For unattended installs, hosts must be specified on the '
                    'command line or in the config file: %s' % oo_cfg.config_path)
+        sys.exit(1)
+
+    if 'ansible_ssh_user' not in oo_cfg.settings:
+        click.echo("Must specify ansible_ssh_user in configuration file.")
+        sys.exit(1)
 
     # Lookup a Product based on the key we were given:
     if not oo_cfg.settings['product']:
