@@ -5,7 +5,8 @@ from pkg_resources import resource_filename
 PERSIST_SETTINGS = [
     'ansible_ssh_user',
     'ansible_log_path',
-    'product',
+    'variant',
+    'version',
     ]
 REQUIRED_FACTS = ['ip', 'public_ip', 'hostname', 'public_hostname']
 
@@ -50,10 +51,10 @@ class Host(object):
         self.name = self.ip if self.ip is not None else self.hostname
 
     def __str__(self):
-        return 'h' + self.name
+        return self.name
 
     def __repr__(self):
-        return 'h' + self.name
+        return self.name
 
     def to_dict(self):
         """ Used when exporting to yaml. """

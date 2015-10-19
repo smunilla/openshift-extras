@@ -4,7 +4,7 @@ import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
 from ooinstall.oo_config import Host
-from products import SUPPORTED_PRODUCTS, find_product
+from products import SUPPORTED_VARIANTS, find_variant, get_variant_version_combos
 
 def validate_ansible_dir(ctx, param, path):
     if not path:
@@ -225,18 +225,21 @@ Edit installer.cfg.yaml with the desired values and rerun oo-install using --una
         sys.exit(0)
     return default_facts
 
-def get_product():
-    message = "\nWhich product to you want to install?\n\n"
+def get_variant_and_version():
+    message = "\nWhich variant would you like to install?\n\n"
 
     i = 1
-    for product in SUPPORTED_PRODUCTS:
-        message = "%s\n(%s) %s" % (message, i, product.description)
+    combos = get_variant_version_combos()
+    for (variant, version) in combos:
+        message = "%s\n(%s) %s %s" % (message, i, variant.description,
+            version.name)
+        i = i + 1
 
     click.echo(message)
-    response = click.prompt("Choose a product from above: ", default=1)
-    product = SUPPORTED_PRODUCTS[response - 1].key
+    response = click.prompt("Choose a variant from above: ", default=1)
+    product, version = combos[response - 1]
 
-    return product
+    return product, version
 
 def confirm_continue(message):
     click.echo(message)
@@ -255,15 +258,18 @@ def error_if_missing_info(oo_cfg):
         click.echo("Must specify ansible_ssh_user in configuration file.")
         sys.exit(1)
 
-    # Lookup a Product based on the key we were given:
-    if not oo_cfg.settings['product']:
-        click.echo("No product specified in configuration file.")
+    # Lookup a variant based on the key we were given:
+    if not oo_cfg.settings['variant']:
+        click.echo("No variant specified in configuration file.")
         sys.exit(1)
 
-    product = find_product(oo_cfg.settings['product'])
-    if product is None:
-        click.echo("%s is not an installable product." %
-            oo_cfg.settings['product'])
+    version = None
+    if 'variant_version' in oo_cfg.settings:
+        version = oo_cfg.settings['variant_version']
+    variant, version = find_variant(oo_cfg.settings['variant'], version=version)
+    if variant is None or version is None:
+        click.echo("%s is not an installable variant." %
+            oo_cfg.settings['variant'])
         sys.exit(1)
 
     missing_facts = oo_cfg.calc_missing_facts()
@@ -312,8 +318,10 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
         oo_cfg.hosts = collect_hosts()
         click.clear()
 
-    if oo_cfg.settings.get('product', '') == '':
-        oo_cfg.settings['product'] = get_product()
+    if oo_cfg.settings.get('variant', '') == '':
+        variant, version = get_variant_and_version()
+        oo_cfg.settings['variant'] = variant.name
+        oo_cfg.settings['variant_version'] = version.name
         click.clear()
 
     return oo_cfg

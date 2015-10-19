@@ -1,7 +1,7 @@
 import subprocess
 import os
 import yaml
-from products import find_product
+from products import find_variant
 
 CFG = None
 
@@ -21,8 +21,9 @@ def generate_inventory(hosts):
         base_inventory.write('ansible_sudo=true\n')
 
     # Find the correct deployment type for ansible:
-    prod = find_product(CFG.settings['product'])
-    base_inventory.write('deployment_type={}\n'.format(prod.ansible_key))
+    variant, ver = find_variant(CFG.settings['variant'],
+        version=CFG.settings.get('variant_version', None))
+    base_inventory.write('deployment_type={}\n'.format(ver.ansible_key))
     # TODO: Support AEP!
     base_inventory.write('product_type=openshift\n')
     if 'OO_INSTALL_DEVEL_REGISTRY' in os.environ:

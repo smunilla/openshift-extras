@@ -2,14 +2,13 @@
 
 Upon completion oo-install will write out a configuration file representing the settings that were gathered and used. This configuration file, or one crafted by hand, can be used to run or re-run the installer and add additional hosts, upgrade, or re-install.
 
-If a complete configuration file is used,
-
 The default location this config file will be written to ~/.config/openshift/installer.cfg.yml.
 
 ## Example
 
 ```
-deployment_type: enterprise
+variant: openshift-enterprise
+variant_version: 3.0
 ansible_ssh_user: root
 hosts:
 - ip: 10.0.0.1
@@ -33,13 +32,16 @@ hosts:
 
 ## Primary Settings
 
-### product
+### variant
 
-The OpenShift product to install. Currently valid options are:
+The OpenShift variant to install. Currently valid options are:
 
- * openshift-enterprise-3.0
- * openshift-enterprise-3.1
- * atomic-enterprise-3.1
+ * openshift-enterprise
+ * atomic-enterprise
+
+### version (optional)
+
+Default: Latest version for your chosen variant.
 
 ### hosts
 

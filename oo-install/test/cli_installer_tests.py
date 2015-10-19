@@ -32,7 +32,7 @@ DUMMY_SYSTEM_FACTS = {
 
 # Substitute in a product name before use:
 SAMPLE_CONFIG = """
-product: %s
+variant: %s
 ansible_ssh_user: root
 hosts:
   - ip: 10.0.0.1
@@ -71,6 +71,9 @@ class UnattendedCliTests(OOCliFixture):
             print("Unexpected result from CLI execution")
             print("Exit code: %s" % result.exit_code)
             print("Exception: %s" % result.exception)
+            print result.exc_info
+            import traceback
+            traceback.print_exception(*result.exc_info)
             print("Output:\n%s" % result.output)
             self.assertTrue("Exception during CLI execution", False)
 
@@ -86,7 +89,7 @@ class UnattendedCliTests(OOCliFixture):
         run_playbook_mock.return_value = 0
 
         config_file = self.write_config(os.path.join(self.work_dir,
-            'ooinstall.conf'), SAMPLE_CONFIG % 'openshift-enterprise-3.1')
+            'ooinstall.conf'), SAMPLE_CONFIG % 'openshift-enterprise')
 
         self.cli_args.extend(["-c", config_file])
         result = self.runner.invoke(cli.main, self.cli_args)
@@ -138,7 +141,7 @@ class UnattendedCliTests(OOCliFixture):
     def test_inventory_write(self, load_facts_mock, run_playbook_mock):
 
         # Add an ssh user so we can verify it makes it to the inventory file:
-        merged_config = "%s\n%s" % (SAMPLE_CONFIG % 'openshift-enterprise-3.1',
+        merged_config = "%s\n%s" % (SAMPLE_CONFIG % 'openshift-enterprise',
             "ansible_ssh_user: bob")
         load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
         run_playbook_mock.return_value = 0
@@ -159,22 +162,3 @@ class UnattendedCliTests(OOCliFixture):
             inventory.get('OSEv3:vars', 'deployment_type'))
         self.assertEquals('openshift',
             inventory.get('OSEv3:vars', 'product_type'))
-
-    @patch('ooinstall.install_transactions.run_main_playbook')
-    @patch('ooinstall.install_transactions.load_system_facts')
-    def test_inventory_ose30_legacy_product(self, load_facts_mock, run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
-        run_playbook_mock.return_value = 0
-
-        config_file = self.write_config(os.path.join(self.work_dir,
-            'ooinstall.conf'), SAMPLE_CONFIG % 'enterprise')
-
-        self.cli_args.extend(["-c", config_file])
-        result = self.runner.invoke(cli.main, self.cli_args)
-        self.assert_result(result, 0)
-
-        # Check the inventory file looks as we would expect:
-        inventory = ConfigParser.ConfigParser(allow_no_value=True)
-        inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
-        self.assertEquals('enterprise',
-            inventory.get('OSEv3:vars', 'deployment_type'))

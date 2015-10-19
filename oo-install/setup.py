@@ -45,7 +45,7 @@ setup(
     # simple. Or you can use find_packages().
     #packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
     packages=['ooinstall'],
-    package_dir={'ooinstall': 'ooinstall'},
+    package_dir={'ooinstall': 'src/ooinstall'},
 
 
     # List run-time dependencies here.  These will be installed by pip when
