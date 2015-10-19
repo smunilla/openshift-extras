@@ -3,19 +3,12 @@ import re
 import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
-from oo_config import Host
+from ooinstall.oo_config import Host
 from products import SUPPORTED_PRODUCTS, find_product
-
-class InstallerInfo(object):
-    def __init__(self, ansible_ssh_user=None, product=None, masters=None, nodes=None):
-        self.ansible_ssh_user = ansible_ssh_user
-        self.product_key = product
-        self.masters = masters
-        self.nodes = nodes
 
 def validate_ansible_dir(ctx, param, path):
     if not path:
-        raise click.BadParameter("An ansible path must be provided")
+        raise click.BadParameter('An ansible path must be provided')
     return path
     # if not os.path.exists(path)):
     #     raise click.BadParameter("Path \"{}\" doesn't exist".format(path))
@@ -43,19 +36,6 @@ def validate_prompt_hostname(hostname):
     raise click.BadParameter('"{}" appears to be an invalid hostname. ' \
                              'Please double-check this value i' \
                              'and re-enter it.'.format(hostname))
-
-def get_hosts(hosts):
-    click.echo('Please input each target host, followed by the return key. ' \
-               'When finished, simply press return on an empty line.')
-    while True:
-        hostname = click.prompt('hostname/IP address',
-                                default='',
-                                value_proc=validate_prompt_hostname)
-        if '' == hostname:
-            break
-        hosts.append(hostname)
-    hosts = list(set(hosts)) # uniquify
-    return hosts
 
 def get_ansible_ssh_user():
     click.clear()
@@ -92,9 +72,15 @@ def delete_hosts(hosts):
                 click.echo("\"{}\" doesn't coorespond to any valid input.".format(del_idx))
     return hosts, None
 
-def collect_masters():
+def collect_hosts():
+    """
+        Collect host information from user. This will later be filled in using
+        ansible.
+
+        Returns: a list of host information collected from the user
+    """
     click.clear()
-    click.echo('***Master Configuration***')
+    click.echo('***Host Configuration***')
     message = """
 The OpenShift Master serves the API and web console.  It also coordinates the
 jobs that have to run across the environment.  It can even run the datastore.
@@ -106,26 +92,39 @@ configured as Nodes.  This is so that the Master will be able to proxy to Pods
 from the API.  By default this Node will be unscheduleable but this can be changed
 after installation with 'oadm manage-node'.
 
-http://docs.openshift.com/enterprise/latest/architecture/infrastructure_components/kubernetes_infrastructure.html#master
-    """
-    click.echo(message)
-    return collect_hosts('masters')
-
-def collect_nodes(nodes):
-    click.clear()
-    click.echo('***Node Configuration***')
-    message = """
 The OpenShift Node provides the runtime environments for containers.  It will
 host the required services to be managed by the Master.
 
-By default all Masters will be configured as Nodes.
-
-https://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/kubernetes_infrastructure.html#node
+http://docs.openshift.com/enterprise/latest/architecture/infrastructure_components/kubernetes_infrastructure.html#master
+http://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/kubernetes_infrastructure.html#node
     """
     click.echo(message)
-    return collect_hosts('nodes', nodes)
 
-def collect_hosts(host_type, hosts=[]):
+    hosts = []
+    more_hosts = True
+    ip_regex = re.compile(r'^\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}$')
+
+    while more_hosts:
+        host_props = {}
+        hostname_or_ip = click.prompt('Enter hostname or IP address:',
+                                      default='',
+                                      value_proc=validate_prompt_hostname)
+
+        if ip_regex.match(hostname_or_ip):
+            host_props['ip'] = hostname_or_ip
+        else:
+            host_props['hostname'] = hostname_or_ip
+
+        host_props['master'] = click.confirm('Will this host be an OpenShift Master?')
+
+        host = Host(**host_props)
+
+        hosts.append(host)
+
+        more_hosts = click.confirm('Do you want to add additional hosts?')
+    return hosts
+
+def collect_hosts_temp(host_type, hosts=[]):
     message = """
 Next we will launch an editor for entering {}.  The default editor in your
 environment can be overridden exporting the VISUAL environment variable.
@@ -133,10 +132,10 @@ environment can be overridden exporting the VISUAL environment variable.
     click.echo(message)
     click.pause()
     while True:
-        MARKER = '# Please enter {} one per line.  Hostnames or IPs are valid.\n'.format(host_type)
-        message = click.edit("\n".join(hosts) + '\n\n' + MARKER)
+        marker = '# Please enter {} one per line.  Hostnames or IPs are valid.\n'.format(host_type)
+        message = click.edit("\n".join(hosts) + '\n\n' + marker)
         if message is not None:
-            msg = message.split(MARKER, 1)[0].rstrip('\n')
+            msg = message.split(marker, 1)[0].rstrip('\n')
             hosts = msg.splitlines()
             if hosts:
                 # TODO: A lot more error handling needs to happen here.
@@ -168,14 +167,16 @@ environment can be overridden exporting the VISUAL environment variable.
 def confirm_hosts_facts(hosts, callback_facts):
     click.clear()
     message = """
-You'll now be asked to edit a file that will be used to validate settings
-gathered from the Masters and Nodes.  Since it's often the case that the
-hostname for a system inside the cluster is different from the hostname that is
-resolveable from commandline or web clients these settings cannot be validated
-automatically.
+A list of the facts gathered from the provided hosts follows. Because it is
+often the case that the hostname for a system inside the cluster is different 
+from the hostname that is resolveable from command line or web clients
+these settings cannot be validated automatically.
 
 For some cloud providers the installer is able to gather metadata exposed in
 the instance so reasonable defaults will be provided.
+
+Plese confirm that they are correct before moving forward.
+
 """
     notes = """
 Format:
@@ -193,54 +194,47 @@ Notes:
 """
 
     click.echo(message)
-    click.pause()
 
     default_facts_lines = []
     default_facts = {}
     validated_facts = {}
     for h in hosts:
         default_facts[h] = {}
-        default_facts[h]["ip"] = callback_facts[h]["common"]["ip"]
-        default_facts[h]["public_ip"] = callback_facts[h]["common"]["public_ip"]
-        default_facts[h]["hostname"] = callback_facts[h]["common"]["hostname"]
-        default_facts[h]['public_hostname'] = callback_facts[h]["common"]["public_hostname"]
+        h.ip = callback_facts[str(h)]["common"]["ip"]
+        h.public_ip = callback_facts[str(h)]["common"]["public_ip"]
+        h.hostname = callback_facts[str(h)]["common"]["hostname"]
+        h.public_hostname = callback_facts[str(h)]["common"]["public_hostname"]
 
         validated_facts[h] = {}
-        default_facts_lines.append(",".join([h,
-                                             callback_facts[h]["common"]["ip"],
-                                             callback_facts[h]["common"]["public_ip"],
-                                             callback_facts[h]["common"]["hostname"],
-                                             callback_facts[h]["common"]["public_hostname"]]))
+        default_facts_lines.append(",".join([h.ip,
+                                             h.public_ip,
+                                             h.hostname,
+                                             h.public_hostname]))
+        click.echo(",".join([h.ip,
+                             h.public_ip,
+                             h.hostname,
+                             h.public_hostname]))
 
-    MARKER = '# Everything after this line is ignored.\n'
-    message = click.edit("\n".join(default_facts_lines) + '\n\n' + MARKER + notes)
-    if message is not None:
-        facts = message.split(MARKER, 1)[0].rstrip('\n')
-        facts_lines = facts.splitlines()
-        # TODO: A lot more error handling needs to happen here.
-        facts_lines = filter(None, facts_lines)
-        for l in facts_lines:
-            h, ip, public_ip, hostname, public_hostname = l.split(',')
-            validated_facts[h]["ip"] = ip.strip()
-            validated_facts[h]["public_ip"] = public_ip.strip()
-            validated_facts[h]["hostname"] = hostname.strip()
-            validated_facts[h]['public_hostname'] = public_hostname.strip()
-    else:
-        click.echo('No changes made.  Using the defaults.')
-        return default_facts
-    return validated_facts
-
-def get_product(product):
-    if product == '':
-        message = "\nWhich product to you want to install?\n\n"
-
-        i = 1
-        for product in SUPPORTED_PRODUCTS:
-            message = "%s\n(%s) %s" % (message, i, product.description)
-
+    click.echo(notes)
+    facts_confirmed = click.confirm("Do the above facts look correct?")
+    if not facts_confirmed:
+        message = """
+Edit installer.cfg.yaml with the desired values and rerun oo-install using --unattended .
+"""
         click.echo(message)
-        response = click.prompt("Choose a product from above: ", default=1)
-        product = SUPPORTED_PRODUCTS[response - 1].key
+        sys.exit(0)
+    return default_facts
+
+def get_product():
+    message = "\nWhich product to you want to install?\n\n"
+
+    i = 1
+    for product in SUPPORTED_PRODUCTS:
+        message = "%s\n(%s) %s" % (message, i, product.description)
+
+    click.echo(message)
+    response = click.prompt("Choose a product from above: ", default=1)
+    product = SUPPORTED_PRODUCTS[response - 1].key
 
     return product
 
@@ -251,15 +245,21 @@ def confirm_continue(message):
 
 def error_if_missing_info(oo_cfg):
     missing_info = False
-    if 'masters' not in oo_cfg.settings or len(oo_cfg.settings['masters']) == 0:
+    if not oo_cfg.hosts:
         missing_info = True
-        click.echo('For unattended installs, masters must be specified on the '
+        click.echo('For unattended installs, hosts must be specified on the '
                    'command line or in the config file: %s' % oo_cfg.config_path)
 
-    if 'nodes' not in oo_cfg.settings or len(oo_cfg.settings['nodes']) == 0:
-        missing_info = True
-        click.echo('For unattended installs, nodes must be specified on the '
-                   'command line or in the config file: %s' % oo_cfg.config_path)
+    # Lookup a Product based on the key we were given:
+    if not oo_cfg.settings['product']:
+        click.echo("No product specified in configuration file.")
+        sys.exit(1)
+
+    product = find_product(oo_cfg.settings['product'])
+    if product is None:
+        click.echo("%s is not an installable product." %
+            oo_cfg.settings['product'])
+        sys.exit(1)
 
     missing_facts = oo_cfg.calc_missing_facts()
     if len(missing_facts) > 0:
@@ -272,9 +272,8 @@ def error_if_missing_info(oo_cfg):
         sys.exit(1)
 
 
-def get_info_from_user(ansible_ssh_user, product_key, masters, nodes):
+def get_missing_info_from_user(oo_cfg):
     """ Prompts the user for any information missing from the given configuration. """
-    installer_info = InstallerInfo()
     click.clear()
 
     message = """
@@ -300,38 +299,29 @@ https://docs.openshift.com/enterprise/latest/admin_guide/install/prerequisites.h
     confirm_continue(message)
     click.clear()
 
-    if ansible_ssh_user == '':
-        ansible_ssh_user = get_ansible_ssh_user()
+    if oo_cfg.settings.get('ansible_ssh_user', '') == '':
+        oo_cfg.settings['ansible_ssh_user'] = get_ansible_ssh_user()
         click.clear()
 
-    if product_key == '':
-        product_key = get_product(product_key)
+    if not oo_cfg.hosts:
+        oo_cfg.hosts = collect_hosts()
         click.clear()
 
-    # TODO: Until the Master can run the SDN itself we have to configure the Masters
-    # as Nodes too.
-    if not masters:
-        masters = collect_masters()
-    if not nodes:
-        nodes = collect_nodes(masters)
-    nodes = list(set(masters + nodes))
+    if oo_cfg.settings.get('product', '') == '':
+        oo_cfg.settings['product'] = get_product()
+        click.clear()
 
-    installer_info.masters = masters
-    installer_info.nodes = nodes
-    installer_info.product_key = product_key
-    installer_info.ansible_ssh_user = ansible_ssh_user
-
-    return installer_info
+    return oo_cfg
 
 
-def collect_new_nodes_from_user():
+def collect_new_nodes():
     click.clear()
     click.echo('***New Node Configuration***')
     message = """
 Add new nodes here
     """
     click.echo(message)
-    return collect_hosts('new hosts')
+    return collect_hosts()
 
 def get_installed_hosts(hosts, callback_facts):
     installed_hosts = []
@@ -343,18 +333,18 @@ def get_installed_hosts(hosts, callback_facts):
     return installed_hosts
 
 def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
-    hosts_to_run_on = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
+    hosts_to_run_on = oo_cfg.hosts
 
     # Check if master or nodes already have something installed
-    installed_masters = get_installed_hosts(list(oo_cfg.settings['masters']), callback_facts)
-    installed_nodes = get_installed_hosts(list(oo_cfg.settings['nodes']), callback_facts)
-    if len(installed_masters) > 0 or len(installed_nodes) > 0:
+    installed_hosts = get_installed_hosts(oo_cfg.hosts, callback_facts)
+    if len(installed_hosts) > 0:
         # present a message listing already installed hosts
-        for master in installed_masters:
-            click.echo("{} is already an OpenShift Master".format(master))
-        for node in installed_nodes:
-            click.echo("{} is already an OpenShift Node".format(node))
-            hosts_to_run_on.remove(node)
+        for host in installed_hosts:
+            if host.master:
+                click.echo("{} is already an OpenShift Master".format(host))
+            elif host.node:
+                click.echo("{} is already an OpenShift Node".format(host))
+                hosts_to_run_on.remove(host)
         # for unattended either continue if they force install or exit if they didn't
         if unattended:
             if not force:
@@ -367,13 +357,12 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
             response = click.prompt('Do you want to (1) add more nodes or ' \
                                     '(2) perform a clean install?', type=int)
             if response == 1: # add more nodes
-                new_nodes = collect_new_nodes_from_user()
+                new_nodes = collect_new_nodes()
 
                 hosts_to_run_on.append(new_nodes)
 
                 install_transactions.set_config(oo_cfg)
-                callback_facts, error = install_transactions.default_facts(oo_cfg.settings['masters'],
-                                                                           oo_cfg.settings['nodes'])
+                callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
                 if error:
                     click.echo("There was a problem fetching the required information. " \
                                "See {} for details.".format(oo_cfg.settings['ansible_log_path']))
@@ -407,11 +396,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
               default="/tmp/ansible.log")
 @click.option('--unattended', '-u', is_flag=True, default=False)
 @click.option('--force', '-f', is_flag=True, default=False)
-# TODO: This probably needs to be updated now that hosts -> masters/nodes
-@click.option('--host', '-h', 'hosts', multiple=True, callback=validate_hostname)
-def main(configuration, ansible_playbook_directory, ansible_log_path,
-    unattended, hosts, force):
-
+def main(configuration, ansible_playbook_directory, ansible_log_path, unattended, force):
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:
@@ -423,70 +408,13 @@ def main(configuration, ansible_playbook_directory, ansible_log_path,
     oo_cfg.settings['ansible_log_path'] = ansible_log_path
     install_transactions.set_config(oo_cfg)
 
-    # Use CLI hosts if not already specified:
-    # NOTE: This implies the config file masters/nodes override CLI.
-    # Probably should kill the CLI hosts, this doesn't work so well with masters/nodes.
-    masters = oo_cfg.settings.setdefault('masters', hosts)
-    nodes = oo_cfg.settings.setdefault('nodes', hosts)
-    ansible_ssh_user = oo_cfg.settings.get('ansible_ssh_user', '')
-
-    product_key = oo_cfg.settings.get('product', '')
-
     if unattended:
-        installer_info = InstallerInfo(ansible_ssh_user, product_key, masters, nodes)
         error_if_missing_info(oo_cfg)
     else:
-        installer_info = get_info_from_user(ansible_ssh_user, product_key, masters, nodes)
+        oo_cfg = get_missing_info_from_user(oo_cfg)
 
-    oo_cfg.settings['ansible_ssh_user'] = installer_info.ansible_ssh_user
-    oo_cfg.settings['product'] = installer_info.product_key
-    oo_cfg.settings['masters'] = installer_info.masters
-    oo_cfg.settings['nodes'] = installer_info.nodes
-
-    # Lookup a Product based on the key we were given:
-    if not oo_cfg.settings['product']:
-        click.echo("No product specified in configuration file.")
-        sys.exit(1)
-    product = find_product(oo_cfg.settings['product'])
-    if product is None:
-        click.echo("%s is not an installable product." %
-            oo_cfg.settings['product'])
-        sys.exit(1)
-
-    # TODO: Hack to be removed with the UI refactor:
-    # We now have a list of strings for masters/nodes, add Host entries to
-    # oo_config if necessary, make sure to check if each string looks like
-    # an IP or a hostname so we can set appropriate property on the Host:
-    ip_regex = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
-    all_hostnames = list(set(oo_cfg.settings['masters'] + oo_cfg.settings['nodes']))
-    for hostname in all_hostnames:
-        # Create a host if one doesn't exist:
-        if oo_cfg.get_host(hostname) is None:
-            host_props = {}
-            if ip_regex.match(hostname):
-                host_props['ip'] = hostname
-            else:
-                host_props['hostname'] = hostname
-            host_props['master'] = True
-            host = Host(**host_props)
-            oo_cfg.hosts.append(host)
-
-        # Flag it as master/node appropriately:
-        host = oo_cfg.get_host(hostname)
-        if hostname in oo_cfg.settings['masters']:
-            host.master = True
-        if hostname in oo_cfg.settings['nodes']:
-            host.node = True
-
-
-
-    # TODO: Technically we should make sure all the hosts are listed in the
-    # validated facts.
     click.echo('Gathering information from hosts...')
-    print oo_cfg.settings['masters']
-    print oo_cfg.settings['nodes']
-    callback_facts, error = install_transactions.default_facts(
-        oo_cfg.settings['masters'], oo_cfg.settings['nodes'])
+    callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
     if error:
         click.echo("There was a problem fetching the required information. " \
                    "Please see {} for details.".format(oo_cfg.settings['ansible_log_path']))
@@ -494,42 +422,17 @@ def main(configuration, ansible_playbook_directory, ansible_log_path,
 
     hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force)
 
+    click.echo('Writing config to: %s' % oo_cfg.config_path)
+    oo_cfg.save_to_disk()
+
     # We already verified this is not the case for unattended installs, so this can
     # only trigger for live CLI users:
     # TODO: if there are *new* nodes and this is a live install, we may need the  user
     # to confirm the settings for new nodes. Look into this once we're distinguishing
     # between new and pre-existing nodes.
     if len(oo_cfg.calc_missing_facts()) > 0:
-        validated_facts = confirm_hosts_facts(list(set(oo_cfg.settings['masters'] +
-                                                       oo_cfg.settings['nodes'])), callback_facts)
-        if validated_facts:
-            oo_cfg.settings['validated_facts'] = validated_facts
+        validated_hosts = confirm_hosts_facts(oo_cfg.hosts, callback_facts)
 
-
-
-        # TODO: This is a total hack that Sam will save us from with the UI refactor:
-        # We now have a complete list of masters/nodes and validated facts, trash
-        # whatever hosts we had on the config and update them for the settings we just
-        # accumulated.
-        # Eventually we'll just get Host objects from the user and add them to the config.
-        for hostname in validated_facts:
-            # We know there's a Host object from earlier block:
-            host = oo_cfg.get_host(hostname)
-
-            host_props = validated_facts[hostname]
-            host.ip = host_props['ip']
-            host.public_ip = host_props['public_ip']
-            host.hostname = host_props['hostname']
-            host.public_hostname = host_props['public_hostname']
-
-    # TODO: Temporary hack as well
-    # Reset the backward compatability settings:
-    oo_cfg._add_legacy_backward_compat_settings()
-
-
-
-    click.echo('Writing updated config to: %s' % oo_cfg.config_path)
-    oo_cfg.save_to_disk()
 
     click.echo('Ready to run installation process.')
     message = """
@@ -538,8 +441,7 @@ If changes are needed to the values recorded by the installer please update {}.
     if not unattended:
         confirm_continue(message)
 
-    error = install_transactions.run_main_playbook(oo_cfg.settings['masters'],
-                                                   oo_cfg.settings['nodes'],
+    error = install_transactions.run_main_playbook(oo_cfg.hosts,
                                                    hosts_to_run_on)
     if error:
         # The bootstrap script will print out the log location.
