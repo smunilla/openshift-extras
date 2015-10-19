@@ -33,7 +33,13 @@ hosts:
 
 ## Primary Settings
 
-### deployment_type
+### product
+
+The OpenShift product to install. Currently valid options are:
+
+ * openshift-enterprise-3.0
+ * openshift-enterprise-3.1
+ * atomic-enterprise-3.1
 
 ### hosts
 
