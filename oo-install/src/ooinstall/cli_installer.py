@@ -116,52 +116,13 @@ http://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/
             host_props['hostname'] = hostname_or_ip
 
         host_props['master'] = click.confirm('Will this host be an OpenShift Master?')
+        host_prods['node'] = True
 
         host = Host(**host_props)
 
         hosts.append(host)
 
         more_hosts = click.confirm('Do you want to add additional hosts?')
-    return hosts
-
-def collect_hosts_temp(host_type, hosts=[]):
-    message = """
-Next we will launch an editor for entering {}.  The default editor in your
-environment can be overridden exporting the VISUAL environment variable.
-    """.format(host_type)
-    click.echo(message)
-    click.pause()
-    while True:
-        marker = '# Please enter {} one per line.  Hostnames or IPs are valid.\n'.format(host_type)
-        message = click.edit("\n".join(hosts) + '\n\n' + marker)
-        if message is not None:
-            msg = message.split(marker, 1)[0].rstrip('\n')
-            hosts = msg.splitlines()
-            if hosts:
-                # TODO: A lot more error handling needs to happen here.
-                hosts = filter(None, hosts)
-            else:
-                click.echo('Empty message!')
-        else:
-            click.echo('You did not enter anything!')
-
-        click.clear()
-        if hosts:
-            for i, h in enumerate(hosts):
-                click.echo("{}) ".format(i+1) + h)
-            response = click.prompt("Please confirm the following {}. " \
-                                    "y/Y to confirm, or n/N to edit".format(host_type), default='n')
-            response = response.lower()
-            if response == 'y':
-                break
-        else:
-            response = click.prompt("No {} entered.  y/Y to confirm, " \
-                                    "or n/N to edit".format(host_type), default='n')
-            response = response.lower()
-            if response == 'y':
-                break
-        click.clear()
-
     return hosts
 
 def confirm_hosts_facts(hosts, callback_facts):
