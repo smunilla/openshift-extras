@@ -5,6 +5,7 @@ from pkg_resources import resource_filename
 PERSIST_SETTINGS = [
     'ansible_ssh_user',
     'ansible_log_path',
+    'product',
     ]
 REQUIRED_FACTS = ['ip', 'public_ip', 'hostname', 'public_hostname']
 

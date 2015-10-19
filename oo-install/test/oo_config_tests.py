@@ -133,6 +133,7 @@ class OOConfigTests(OOCliFixture):
             self.assertTrue('public_hostname' in h)
 
         self.assertTrue('ansible_ssh_user' in written_config)
+        self.assertTrue('product' in written_config)
 
         # Some advanced settings should not get written out if they
         # were not specified by the user:
