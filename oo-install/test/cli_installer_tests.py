@@ -6,29 +6,35 @@ import yaml
 import ooinstall.cli_installer as cli
 
 from click.testing import CliRunner
-from oo_config_tests import OOCliFixture
+from oo_config_tests import OOInstallFixture
 from mock import patch
 
 
-DUMMY_MASTER = "master.my.example.com"
-DUMMY_NODE = "node1.my.example.com"
 DUMMY_SYSTEM_FACTS = {
-    '192.168.1.1': {
+    '10.0.0.1': {
         'common': {
-            'ip': '192.168.1.1',
+            'ip': '10.0.0.1',
             'public_ip': '10.0.0.1',
-            'hostname': DUMMY_MASTER,
-            'public_hostname': DUMMY_MASTER
+            'hostname': 'master-private.example.com',
+            'public_hostname': 'master.example.com'
         }
     },
-    '192.168.1.2': {
+    '10.0.0.2': {
         'common': {
-            'ip': '192.168.1.2',
+            'ip': '10.0.0.2',
             'public_ip': '10.0.0.2',
-            'hostname': DUMMY_NODE,
-            'public_hostname': DUMMY_NODE
+            'hostname': 'node1-private.example.com',
+            'public_hostname': 'node1.example.com'
         }
-    }
+    },
+    '10.0.0.3': {
+        'common': {
+            'ip': '10.0.0.3',
+            'public_ip': '10.0.0.3',
+            'hostname': 'node2-private.example.com',
+            'public_hostname': 'node2.example.com'
+        }
+    },
 }
 
 # Substitute in a product name before use:
@@ -54,15 +60,16 @@ hosts:
     node: true
 """
 
-class UnattendedCliTests(OOCliFixture):
+
+class OOCliFixture(OOInstallFixture):
 
     def setUp(self):
-        OOCliFixture.setUp(self)
+        OOInstallFixture.setUp(self)
         self.runner = CliRunner()
 
         # Add any arguments you would like to test here, the defaults ensure
         # we only do unattended invocations here, and using temporary files/dirs.
-        self.cli_args = ["-u", "-a", self.work_dir]
+        self.cli_args = ["-a", self.work_dir]
 
     def run_cli(self):
         return self.runner.invoke(cli.main, self.cli_args)
@@ -78,10 +85,12 @@ class UnattendedCliTests(OOCliFixture):
             print("Output:\n%s" % result.output)
             self.assertTrue("Exception during CLI execution", False)
 
-    def test_ansible_path_required(self):
-        result = self.runner.invoke(cli.main, [])
-        self.assert_result(result, 1)
-        self.assertTrue("An ansible path must be provided" in result.output)
+
+class UnattendedCliTests(OOCliFixture):
+
+    def setUp(self):
+        OOCliFixture.setUp(self)
+        self.cli_args.append("-u")
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
@@ -112,29 +121,6 @@ class UnattendedCliTests(OOCliFixture):
         hosts_to_run_on = run_playbook_mock.call_args[0][1]
         self.assertEquals(3, len(hosts))
         self.assertEquals(3, len(hosts_to_run_on))
-
-    #@patch('ooinstall.install_transactions.run_main_playbook')
-    #@patch('ooinstall.install_transactions.load_system_facts')
-    #def test_some_hosts_already_installed(self, load_facts_mock, run_playbook_mock):
-
-    #    # Add a fact that indicates one of our hosts is already installed.
-    #    DUMMY_SYSTEM_FACTS['192.168.1.1']['common']['deployment_type'] = 'enterprise'
-
-    #    load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
-    #    run_playbook_mock.return_value = 0
-
-    #    config_file = self.write_config(os.path.join(self.work_dir,
-    #        'ooinstall.conf'), SAMPLE_CONFIG)
-
-    #    self.cli_args.extend(["-c", config_file])
-    #    result = self.runner.invoke(cli.main, self.cli_args)
-
-    #    print result.exception
-    #    self.assertEquals(0, result.exit_code)
-
-    #    # Run playbook should only try to install on the *new* node:
-    #    self.assertEquals(([], ['192.168.1.2']),
-    #        run_playbook_mock.call_args[0])
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
@@ -223,3 +209,58 @@ class UnattendedCliTests(OOCliFixture):
         inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
         self.assertEquals('enterprise',
             inventory.get('OSEv3:vars', 'deployment_type'))
+
+
+class AttendedCliTests(OOCliFixture):
+
+    def setUp(self):
+        OOCliFixture.setUp(self)
+        # Doesn't exist but keeps us from reading the local users config:
+        self.cli_args.extend(["-c", os.path.join(self.work_dir, 'config.yml')])
+
+    def _build_input(self, ssh_user='root', variant_num=1):
+        return '\n'.join([
+            'y',  # let's proceed
+            ssh_user,
+            '10.0.0.1',
+            'y',  # is a master
+            'y',  # add additional hosts
+            '10.0.0.2',
+            'n',  # not a master
+            'y',  # add additional hosts
+            '10.0.0.3',
+            'n',  # not a master
+            'n',  # done with hosts
+            str(variant_num),
+            'y',  # confirm the facts
+            'y'  # lets do this
+        ])
+
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_cfg_full_run(self, load_facts_mock, run_playbook_mock):
+        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        result = self.runner.invoke(cli.main, self.cli_args,
+            input=self._build_input())
+        self.assert_result(result, 0)
+
+        load_facts_args = load_facts_mock.call_args[0]
+        self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
+            load_facts_args[0])
+        self.assertEquals(os.path.join(self.work_dir,
+            "playbooks/byo/openshift_facts.yml"), load_facts_args[1])
+        env_vars = load_facts_args[2]
+        self.assertEquals(os.path.join(self.work_dir,
+            '.ansible/callback_facts.yaml'),
+            env_vars['OO_INSTALL_CALLBACK_FACTS_YAML'])
+        self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
+
+        # Make sure we ran on the expected masters and nodes:
+        hosts = run_playbook_mock.call_args[0][0]
+        hosts_to_run_on = run_playbook_mock.call_args[0][1]
+        self.assertEquals(3, len(hosts))
+        self.assertEquals(3, len(hosts_to_run_on))
+
+# TODO: Test scaleup run on correct hosts when some show up as already installed

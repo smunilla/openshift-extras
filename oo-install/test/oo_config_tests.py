@@ -44,7 +44,7 @@ hosts:
 """
 
 
-class OOCliFixture(unittest.TestCase):
+class OOInstallFixture(unittest.TestCase):
 
     def setUp(self):
         self.tempfiles = []
@@ -70,7 +70,7 @@ class OOCliFixture(unittest.TestCase):
         return path
 
 
-class OOConfigTests(OOCliFixture):
+class OOConfigTests(OOInstallFixture):
 
     def test_load_config(self):
 
@@ -134,7 +134,7 @@ class OOConfigTests(OOCliFixture):
         self.assertFalse('ansible_inventory_directory' in written_config)
 
 
-class HostTests(OOCliFixture):
+class HostTests(OOInstallFixture):
 
     def test_load_host_no_ip_or_hostname(self):
         yaml_props = {

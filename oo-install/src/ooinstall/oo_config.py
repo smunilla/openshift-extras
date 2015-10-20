@@ -95,6 +95,7 @@ class OOConfig(object):
             if new_settings:
                 self.settings = new_settings
                 # Parse the hosts into DTO objects:
+                print self.settings
                 if 'hosts' in self.settings:
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(**host))

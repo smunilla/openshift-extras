@@ -154,7 +154,9 @@ Notes:
    the cloud.
 """
 
-    click.echo(message)
+    # For testing purposes we need to click.echo only once, so build up
+    # the message:
+    output = message
 
     default_facts_lines = []
     default_facts = {}
@@ -171,12 +173,14 @@ Notes:
                                              h.public_ip,
                                              h.hostname,
                                              h.public_hostname]))
-        click.echo(",".join([h.ip,
+        output = "%s\n%s" % (output, ",".join([h.ip,
                              h.public_ip,
                              h.hostname,
                              h.public_hostname]))
 
-    click.echo(notes)
+    output = "%s\n%s" % (output, notes)
+    print output
+    click.echo(output)
     facts_confirmed = click.confirm("Do the above facts look correct?")
     if not facts_confirmed:
         message = """
