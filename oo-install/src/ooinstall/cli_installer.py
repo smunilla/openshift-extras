@@ -406,7 +406,6 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force)
 
     click.echo('Writing config to: %s' % oo_cfg.config_path)
-    oo_cfg.save_to_disk()
 
     # We already verified this is not the case for unattended installs, so this can
     # only trigger for live CLI users:
@@ -416,6 +415,7 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     if len(oo_cfg.calc_missing_facts()) > 0:
         validated_hosts = confirm_hosts_facts(oo_cfg.hosts, callback_facts)
 
+    oo_cfg.save_to_disk()
 
     click.echo('Ready to run installation process.')
     message = """
