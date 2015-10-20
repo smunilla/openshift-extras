@@ -85,6 +85,12 @@ class OOCliFixture(OOInstallFixture):
             print("Output:\n%s" % result.output)
             self.assertTrue("Exception during CLI execution", False)
 
+    def _read_yaml(self, config_file_path):
+        f = open(config_file_path, 'r')
+        config = yaml.safe_load(f.read())
+        f.close()
+        return config
+
 
 class UnattendedCliTests(OOCliFixture):
 
@@ -149,12 +155,6 @@ class UnattendedCliTests(OOCliFixture):
         self.assertEquals('openshift',
             inventory.get('OSEv3:vars', 'product_type'))
 
-    def _read_yaml(self, config_file_path):
-        f = open(config_file_path, 'r')
-        config = yaml.safe_load(f.read())
-        f.close()
-        return config
-
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_variant_version_latest_assumed(self, load_facts_mock,
@@ -216,7 +216,8 @@ class AttendedCliTests(OOCliFixture):
     def setUp(self):
         OOCliFixture.setUp(self)
         # Doesn't exist but keeps us from reading the local users config:
-        self.cli_args.extend(["-c", os.path.join(self.work_dir, 'config.yml')])
+        self.config_file = os.path.join(self.work_dir, 'config.yml')
+        self.cli_args.extend(["-c", self.config_file])
 
     def _build_input(self, ssh_user='root', variant_num=1):
         return '\n'.join([
@@ -262,5 +263,16 @@ class AttendedCliTests(OOCliFixture):
         hosts_to_run_on = run_playbook_mock.call_args[0][1]
         self.assertEquals(3, len(hosts))
         self.assertEquals(3, len(hosts_to_run_on))
+
+        # Make sure the config file comes out looking right:
+        written_config = self._read_yaml(self.config_file)
+        print written_config
+
+        for h in written_config['hosts']:
+            self.assertTrue(h['node'])
+            self.assertTrue('ip' in h)
+            self.assertTrue('hostname' in h)
+            self.assertTrue('public_ip' in h)
+            self.assertTrue('public_hostname' in h)
 
 # TODO: Test scaleup run on correct hosts when some show up as already installed
