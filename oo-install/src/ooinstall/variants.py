@@ -40,7 +40,7 @@ AEP = Variant('atomic-enterprise', 'Atomic OpenShift Enterprise',
     ]
 )
 
-# Ordered list of products we can install, first is the default.
+# Ordered list of variants we can install, first is the default.
 SUPPORTED_VARIANTS = (OSE, AEP)
 
 

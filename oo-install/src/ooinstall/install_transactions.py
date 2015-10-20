@@ -1,7 +1,7 @@
 import subprocess
 import os
 import yaml
-from products import find_variant
+from variants import find_variant
 
 CFG = None
 
