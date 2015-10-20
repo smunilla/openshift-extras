@@ -224,14 +224,19 @@ def error_if_missing_info(oo_cfg):
         click.echo("No variant specified in configuration file.")
         sys.exit(1)
 
-    version = None
+    ver = None
     if 'variant_version' in oo_cfg.settings:
-        version = oo_cfg.settings['variant_version']
-    variant, version = find_variant(oo_cfg.settings['variant'], version=version)
+        ver = oo_cfg.settings['variant_version']
+    variant, version = find_variant(oo_cfg.settings['variant'], version=ver)
+    print variant
+    print version
     if variant is None or version is None:
-        click.echo("%s is not an installable variant." %
-            oo_cfg.settings['variant'])
+        err_variant_name = oo_cfg.settings['variant']
+        if ver:
+            err_variant_name = "%s %s" % (err_variant_name, ver)
+        click.echo("%s is not an installable variant." % err_variant_name)
         sys.exit(1)
+    oo_cfg.settings['variant_version'] = version.name
 
     missing_facts = oo_cfg.calc_missing_facts()
     if len(missing_facts) > 0:

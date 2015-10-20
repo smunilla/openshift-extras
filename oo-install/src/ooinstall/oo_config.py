@@ -6,7 +6,7 @@ PERSIST_SETTINGS = [
     'ansible_ssh_user',
     'ansible_log_path',
     'variant',
-    'version',
+    'variant_version',
     ]
 REQUIRED_FACTS = ['ip', 'public_ip', 'hostname', 'public_hostname']
 
@@ -99,6 +99,12 @@ class OOConfig(object):
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(**host))
                 self._add_legacy_backward_compat_settings()
+
+                # Watchout for the variant_version coming in as a float:
+                if 'variant_version' in self.settings:
+                    self.settings['variant_version'] = \
+                        str(self.settings['variant_version'])
+
         except IOError, ferr:
             raise OOConfigFileError('Cannot open config file "{}": {}'.format(ferr.filename, ferr.strerror))
         except yaml.scanner.ScannerError:

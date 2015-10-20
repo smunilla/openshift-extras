@@ -7,7 +7,7 @@ import yaml
 from ooinstall.oo_config import OOConfig, Host, OOConfigInvalidHostError
 
 SAMPLE_CONFIG = """
-variant: enterprise
+variant: openshift-enterprise
 ansible_ssh_user: root
 hosts:
   - ip: 10.0.0.1
@@ -90,7 +90,7 @@ class OOConfigTests(OOCliFixture):
         self.assertEquals(["10.0.0.1", "10.0.0.2", "10.0.0.3"],
             ooconfig.settings['nodes'])
 
-        self.assertEquals('enterprise', ooconfig.settings['variant'])
+        self.assertEquals('openshift-enterprise', ooconfig.settings['variant'])
 
     def test_load_complete_validated_facts(self):
         cfg_path = self.write_config(os.path.join(self.work_dir,

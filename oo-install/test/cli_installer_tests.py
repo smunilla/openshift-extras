@@ -1,6 +1,7 @@
 
 import os
 import ConfigParser
+import yaml
 
 import ooinstall.cli_installer as cli
 
@@ -107,7 +108,6 @@ class UnattendedCliTests(OOCliFixture):
         self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
 
         # Make sure we ran on the expected masters and nodes:
-        # TODO: This needs to be addressed, I don't think these call args are permanent:
         hosts = run_playbook_mock.call_args[0][0]
         hosts_to_run_on = run_playbook_mock.call_args[0][1]
         self.assertEquals(3, len(hosts))
@@ -162,3 +162,64 @@ class UnattendedCliTests(OOCliFixture):
             inventory.get('OSEv3:vars', 'deployment_type'))
         self.assertEquals('openshift',
             inventory.get('OSEv3:vars', 'product_type'))
+
+    def _read_yaml(self, config_file_path):
+        f = open(config_file_path, 'r')
+        config = yaml.safe_load(f.read())
+        f.close()
+        return config
+
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_variant_version_latest_assumed(self, load_facts_mock,
+        run_playbook_mock):
+        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        config_file = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), SAMPLE_CONFIG % 'openshift-enterprise')
+
+        self.cli_args.extend(["-c", config_file])
+        result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
+
+        written_config = self._read_yaml(config_file)
+
+        self.assertEquals('openshift-enterprise', written_config['variant'])
+        # We didn't specify a version so the latest should have been assumed,
+        # and written to disk:
+        self.assertEquals('3.1', written_config['variant_version'])
+
+        # Make sure the correct value was passed to ansible:
+        inventory = ConfigParser.ConfigParser(allow_no_value=True)
+        inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
+        self.assertEquals('openshift-enterprise',
+            inventory.get('OSEv3:vars', 'deployment_type'))
+
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_variant_version_preserved(self, load_facts_mock,
+        run_playbook_mock):
+        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        config = SAMPLE_CONFIG % 'openshift-enterprise'
+        config = '%s\n%s' % (config, 'variant_version: 3.0')
+        config_file = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), config)
+
+        self.cli_args.extend(["-c", config_file])
+        result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
+
+        written_config = self._read_yaml(config_file)
+
+        self.assertEquals('openshift-enterprise', written_config['variant'])
+        # Make sure our older version was preserved:
+        # and written to disk:
+        self.assertEquals('3.0', written_config['variant_version'])
+
+        inventory = ConfigParser.ConfigParser(allow_no_value=True)
+        inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
+        self.assertEquals('enterprise',
+            inventory.get('OSEv3:vars', 'deployment_type'))
