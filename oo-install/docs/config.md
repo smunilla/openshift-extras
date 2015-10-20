@@ -39,9 +39,13 @@ The OpenShift variant to install. Currently valid options are:
  * openshift-enterprise
  * atomic-enterprise
 
-### version (optional)
+### variant_version (optional)
 
 Default: Latest version for your chosen variant.
+
+A version which must be valid for your selected variant. If not specified the latest will be assumed.
+
+Examples: 3.0, 3.1, etc.
 
 ### hosts
 
