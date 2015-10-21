@@ -36,7 +36,6 @@ Atomic OpenShift Utilities includes
 %setup -q
 
 %build
-cd src/
 %{__python} setup.py build
 
 %install
