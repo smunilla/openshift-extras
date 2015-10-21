@@ -157,7 +157,6 @@ class UnattendedCliTests(OOCliFixture):
             inventory.get('OSEv3:vars', 'product_type'))
 
         # Check the masters:
-        print inventory.items('masters')
         self.assertEquals(1, len(inventory.items('masters')))
         self.assertEquals(3, len(inventory.items('nodes')))
 
