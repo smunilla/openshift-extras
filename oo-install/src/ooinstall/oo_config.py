@@ -81,9 +81,7 @@ class OOConfig(object):
             self.config_path = os.path.normpath(self.default_dir +
                                                 self.default_file)
         self.settings = {}
-        print self.settings
         self.read_config()
-        print self.settings
         self.set_defaults()
 
     def read_config(self, is_new=False):

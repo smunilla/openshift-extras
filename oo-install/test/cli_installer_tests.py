@@ -1,4 +1,5 @@
 
+import copy
 import os
 import ConfigParser
 import yaml
@@ -10,7 +11,7 @@ from oo_config_tests import OOInstallFixture
 from mock import patch
 
 
-DUMMY_SYSTEM_FACTS = {
+MOCK_FACTS = {
     '10.0.0.1': {
         'common': {
             'ip': '10.0.0.1',
@@ -101,7 +102,7 @@ class UnattendedCliTests(OOCliFixture):
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_cfg_full_run(self, load_facts_mock, run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
         run_playbook_mock.return_value = 0
 
         config_file = self.write_config(os.path.join(self.work_dir,
@@ -135,7 +136,7 @@ class UnattendedCliTests(OOCliFixture):
         # Add an ssh user so we can verify it makes it to the inventory file:
         merged_config = "%s\n%s" % (SAMPLE_CONFIG % 'openshift-enterprise',
             "ansible_ssh_user: bob")
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
         run_playbook_mock.return_value = 0
 
         config_file = self.write_config(os.path.join(self.work_dir,
@@ -159,7 +160,7 @@ class UnattendedCliTests(OOCliFixture):
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_variant_version_latest_assumed(self, load_facts_mock,
         run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
         run_playbook_mock.return_value = 0
 
         config_file = self.write_config(os.path.join(self.work_dir,
@@ -186,7 +187,7 @@ class UnattendedCliTests(OOCliFixture):
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_variant_version_preserved(self, load_facts_mock,
         run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
         run_playbook_mock.return_value = 0
 
         config = SAMPLE_CONFIG % 'openshift-enterprise'
@@ -218,7 +219,6 @@ class AttendedCliTests(OOCliFixture):
         # Doesn't exist but keeps us from reading the local users config:
         self.config_file = os.path.join(self.work_dir, 'config.yml')
         self.cli_args.extend(["-c", self.config_file])
-        print "Work dir: %s" % self.work_dir
 
     def _build_input(self, ssh_user='root', hosts=None, variant_num=1, add_nodes=None):
         """
@@ -265,20 +265,8 @@ class AttendedCliTests(OOCliFixture):
 
         return '\n'.join(inputs)
 
-    @patch('ooinstall.install_transactions.run_main_playbook')
-    @patch('ooinstall.install_transactions.load_system_facts')
-    def test_full_run(self, load_facts_mock, run_playbook_mock):
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
-        run_playbook_mock.return_value = 0
-
-        cli_input = self._build_input(hosts=[
-            ('10.0.0.1', True),
-            ('10.0.0.2', False),
-            ('10.0.0.3', False)])
-        result = self.runner.invoke(cli.main, self.cli_args,
-            input=cli_input)
-        self.assert_result(result, 0)
-
+    def _verify_load_facts(self, load_facts_mock):
+        """ Check that we ran load facts with expected inputs. """
         load_facts_args = load_facts_mock.call_args[0]
         self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
             load_facts_args[0])
@@ -290,15 +278,15 @@ class AttendedCliTests(OOCliFixture):
             env_vars['OO_INSTALL_CALLBACK_FACTS_YAML'])
         self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
 
-        # Make sure we ran on the expected masters and nodes:
+    def _verify_run_playbook(self, run_playbook_mock, exp_hosts_len, exp_hosts_to_run_on_len):
+        """ Check that we ran playbook with expected inputs. """
         hosts = run_playbook_mock.call_args[0][0]
         hosts_to_run_on = run_playbook_mock.call_args[0][1]
-        self.assertEquals(3, len(hosts))
-        self.assertEquals(3, len(hosts_to_run_on))
+        self.assertEquals(exp_hosts_len, len(hosts))
+        self.assertEquals(exp_hosts_to_run_on_len, len(hosts_to_run_on))
 
-        # Make sure the config file comes out looking right:
-        written_config = self._read_yaml(self.config_file)
-
+    def _verify_config_hosts(self, written_config, host_count):
+        self.assertEquals(host_count, len(written_config['hosts']))
         for h in written_config['hosts']:
             self.assertTrue(h['node'])
             self.assertTrue('ip' in h)
@@ -308,14 +296,35 @@ class AttendedCliTests(OOCliFixture):
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
-    def test_new_nodes(self, load_facts_mock, run_playbook_mock):
+    def test_full_run(self, load_facts_mock, run_playbook_mock):
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        cli_input = self._build_input(hosts=[
+            ('10.0.0.1', True),
+            ('10.0.0.2', False),
+            ('10.0.0.3', False)])
+        result = self.runner.invoke(cli.main, self.cli_args,
+            input=cli_input)
+        self.assert_result(result, 0)
+
+        self._verify_load_facts(load_facts_mock)
+        self._verify_run_playbook(run_playbook_mock, 3, 3)
+
+        written_config = self._read_yaml(self.config_file)
+        self._verify_config_hosts(written_config, 3)
+
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_add_nodes(self, load_facts_mock, run_playbook_mock):
 
         # Modify the mock facts to return a version indicating OpenShift
         # is already installed on our master, and the first node.
-        DUMMY_SYSTEM_FACTS['10.0.0.1']['common']['version'] = "3.0.0"
-        DUMMY_SYSTEM_FACTS['10.0.0.2']['common']['version'] = "3.0.0"
+        mock_facts = copy.deepcopy(MOCK_FACTS)
+        mock_facts['10.0.0.1']['common']['version'] = "3.0.0"
+        mock_facts['10.0.0.2']['common']['version'] = "3.0.0"
 
-        load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
+        load_facts_mock.return_value = (mock_facts, 0)
         run_playbook_mock.return_value = 0
 
         cli_input = self._build_input(hosts=[
@@ -329,31 +338,19 @@ class AttendedCliTests(OOCliFixture):
             input=cli_input)
         self.assert_result(result, 0)
 
-        load_facts_args = load_facts_mock.call_args[0]
-        self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
-            load_facts_args[0])
-        self.assertEquals(os.path.join(self.work_dir,
-            "playbooks/byo/openshift_facts.yml"), load_facts_args[1])
-        env_vars = load_facts_args[2]
-        self.assertEquals(os.path.join(self.work_dir,
-            '.ansible/callback_facts.yaml'),
-            env_vars['OO_INSTALL_CALLBACK_FACTS_YAML'])
-        self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
+        self._verify_load_facts(load_facts_mock)
 
         # Make sure we ran on the expected masters and nodes:
-        hosts = run_playbook_mock.call_args[0][0]
-        hosts_to_run_on = run_playbook_mock.call_args[0][1]
-        self.assertEquals(3, len(hosts))
-        self.assertEquals(3, len(hosts_to_run_on))
+        # TODO: Sam is this right? Adding a node means we should execute on the master, plus
+        # that new node?
+        self._verify_run_playbook(run_playbook_mock, 3, 2)
 
         # Make sure the config file comes out looking right:
         written_config = self._read_yaml(self.config_file)
+        self._verify_config_hosts(written_config, 3)
 
-        for h in written_config['hosts']:
-            self.assertTrue(h['node'])
-            self.assertTrue('ip' in h)
-            self.assertTrue('hostname' in h)
-            self.assertTrue('public_ip' in h)
-            self.assertTrue('public_hostname' in h)
-
-# TODO: Test scaleup run on correct hosts when some show up as already installed
+# TODO: test with config file, attended fresh install
+# TODO: test with config file, attended add node
+# TODO: test with config file, attended new node already in config file
+# TODO: test with config file, attended new node already in config file, plus manually added nodes
+# TODO: test with config file, attended reject facts

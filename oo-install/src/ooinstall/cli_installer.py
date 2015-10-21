@@ -180,7 +180,6 @@ Notes:
                              h.public_hostname]))
 
     output = "%s\n%s" % (output, notes)
-    print output
     click.echo(output)
     facts_confirmed = click.confirm("Do the above facts look correct?")
     if not facts_confirmed:
@@ -235,8 +234,6 @@ def error_if_missing_info(oo_cfg):
     if 'variant_version' in oo_cfg.settings:
         ver = oo_cfg.settings['variant_version']
     variant, version = find_variant(oo_cfg.settings['variant'], version=ver)
-    print variant
-    print version
     if variant is None or version is None:
         err_variant_name = oo_cfg.settings['variant']
         if ver:
@@ -319,7 +316,9 @@ def get_installed_hosts(hosts, callback_facts):
     return installed_hosts
 
 def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
-    hosts_to_run_on = oo_cfg.hosts
+
+    # Copy the list of existing hosts so we can remove any already installed nodes.
+    hosts_to_run_on = list(oo_cfg.hosts)
 
     # Check if master or nodes already have something installed
     installed_hosts = get_installed_hosts(oo_cfg.hosts, callback_facts)
@@ -328,6 +327,8 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
         for host in installed_hosts:
             if host.master:
                 click.echo("{} is already an OpenShift Master".format(host))
+                # Masters stay in the list, we need to run against them when adding
+                # new nodes.
             elif host.node:
                 click.echo("{} is already an OpenShift Node".format(host))
                 hosts_to_run_on.remove(host)
@@ -346,6 +347,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
                 new_nodes = collect_new_nodes()
 
                 hosts_to_run_on.extend(new_nodes)
+                oo_cfg.hosts.extend(new_nodes)
 
                 install_transactions.set_config(oo_cfg)
                 callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
@@ -407,6 +409,7 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
         sys.exit(1)
 
     hosts_to_run_on, callback_facts = get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force)
+
 
     click.echo('Writing config to: %s' % oo_cfg.config_path)
 
