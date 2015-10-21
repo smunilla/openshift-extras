@@ -220,23 +220,50 @@ class AttendedCliTests(OOCliFixture):
         self.cli_args.extend(["-c", self.config_file])
         print "Work dir: %s" % self.work_dir
 
-    def _build_input(self, ssh_user='root', variant_num=1):
-        return '\n'.join([
+    def _build_input(self, ssh_user='root', hosts=None, variant_num=1, add_nodes=None):
+        """
+        Builds a CLI input string with newline characters to simulate
+        the full run.
+        This gives us only one place to update when the input prompts change.
+        """
+
+        inputs = [
             'y',  # let's proceed
             ssh_user,
-            '10.0.0.1',
-            'y',  # is a master
-            'y',  # add additional hosts
-            '10.0.0.2',
-            'n',  # not a master
-            'y',  # add additional hosts
-            '10.0.0.3',
-            'n',  # not a master
-            'n',  # done with hosts
-            str(variant_num),
+        ]
+
+        if hosts:
+            i = 0
+            for (host, is_master) in hosts:
+                inputs.append(host)
+                inputs.append('y' if is_master else 'n')
+                if i < len(hosts) - 1:
+                    inputs.append('y')  # Add more hosts
+                else:
+                    inputs.append('n')  # Done adding hosts
+                i += 1
+
+        inputs.append(str(variant_num))  # Choose variant + version
+
+        # TODO: support option 2, fresh install
+        if add_nodes:
+            inputs.append('1')  # Add more nodes
+            i = 0
+            for (host, is_master) in add_nodes:
+                inputs.append(host)
+                inputs.append('y' if is_master else 'n')
+                if i < len(add_nodes) - 1:
+                    inputs.append('y')  # Add more hosts
+                else:
+                    inputs.append('n')  # Done adding hosts
+                i += 1
+
+        inputs.extend([
             'y',  # confirm the facts
-            'y'  # lets do this
+            'y',  # lets do this
         ])
+
+        return '\n'.join(inputs)
 
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
@@ -244,8 +271,12 @@ class AttendedCliTests(OOCliFixture):
         load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
         run_playbook_mock.return_value = 0
 
+        cli_input = self._build_input(hosts=[
+            ('10.0.0.1', True),
+            ('10.0.0.2', False),
+            ('10.0.0.3', False)])
         result = self.runner.invoke(cli.main, self.cli_args,
-            input=self._build_input())
+            input=cli_input)
         self.assert_result(result, 0)
 
         load_facts_args = load_facts_mock.call_args[0]
@@ -287,10 +318,16 @@ class AttendedCliTests(OOCliFixture):
         load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
         run_playbook_mock.return_value = 0
 
+        cli_input = self._build_input(hosts=[
+            ('10.0.0.1', True),
+            ('10.0.0.2', False),
+            ],
+            add_nodes=[
+                ('10.0.0.3', False)
+            ])
         result = self.runner.invoke(cli.main, self.cli_args,
-            input=self._build_input())
+            input=cli_input)
         self.assert_result(result, 0)
-        print result.output
 
         load_facts_args = load_facts_mock.call_args[0]
         self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
