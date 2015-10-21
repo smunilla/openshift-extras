@@ -60,7 +60,7 @@ class Host(object):
         """ Used when exporting to yaml. """
         d = {}
         for prop in ['ip', 'hostname', 'public_ip', 'public_hostname',
-            'master', 'node', 'containerized']:
+                     'master', 'node', 'containerized']:
             # If the property is defined (not None or False), export it:
             if getattr(self, prop):
                 d[prop] = getattr(self, prop)
@@ -98,7 +98,6 @@ class OOConfig(object):
                 if 'hosts' in self.settings:
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(**host))
-                self._add_legacy_backward_compat_settings()
 
                 # Watchout for the variant_version coming in as a float:
                 if 'variant_version' in self.settings:
@@ -106,32 +105,11 @@ class OOConfig(object):
                         str(self.settings['variant_version'])
 
         except IOError, ferr:
-            raise OOConfigFileError('Cannot open config file "{}": {}'.format(ferr.filename, ferr.strerror))
+            raise OOConfigFileError('Cannot open config file "{}": {}'.format(ferr.filename,
+                                                                              ferr.strerror))
         except yaml.scanner.ScannerError:
             raise OOConfigFileError('Config file "{}" is not a valid YAML document'.format(self.config_path))
         self.new_config = is_new
-
-    # This is temporary:
-    def _add_legacy_backward_compat_settings(self):
-        # Translate new yaml host objects to the old style settings for now,
-        # TODO: Remove this once clear to refactor the other modules:
-        masters = []
-        nodes = []
-        validated_facts = {}
-        for host in self.hosts:
-            if host.master:
-                masters.append(host.name)
-            if host.node:
-                nodes.append(host.name)
-            validated_facts[host.name] = {
-                'ip': host.ip,
-                'hostname': host.hostname,
-                'public_ip': host.public_ip,
-                'public_ip': host.public_hostname
-            }
-        self.settings['masters'] = masters
-        self.settings['nodes'] = nodes
-        self.settings['validated_facts'] = validated_facts
 
     def set_defaults(self):
 

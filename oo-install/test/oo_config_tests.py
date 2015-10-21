@@ -83,12 +83,8 @@ class OOConfigTests(OOInstallFixture):
         self.assertEquals("10.0.0.1", ooconfig.hosts[0].ip)
         self.assertEquals("master-private.example.com", ooconfig.hosts[0].hostname)
 
-        masters = ooconfig.settings['masters']
-        self.assertEquals(1, len(masters))
-        self.assertEquals("10.0.0.1", masters[0])
-
         self.assertEquals(["10.0.0.1", "10.0.0.2", "10.0.0.3"],
-            ooconfig.settings['nodes'])
+                          [host['ip'] for host in ooconfig.settings['hosts']])
 
         self.assertEquals('openshift-enterprise', ooconfig.settings['variant'])
 
