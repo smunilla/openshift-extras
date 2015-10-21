@@ -81,7 +81,6 @@ class OOConfig(object):
             self.config_path = os.path.normpath(self.default_dir +
                                                 self.default_file)
         self.settings = {}
-        print "Loading config: %s" % self.config_path
         print self.settings
         self.read_config()
         print self.settings

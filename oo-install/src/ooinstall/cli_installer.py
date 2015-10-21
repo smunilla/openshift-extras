@@ -309,9 +309,13 @@ Add new nodes here
 def get_installed_hosts(hosts, callback_facts):
     installed_hosts = []
     for host in hosts:
-        if(host in callback_facts.keys()
-           and 'common' in callback_facts[host].keys()
-           and callback_facts[host]['common'].get('version', '')):
+        print "A"
+        print type(host)
+        print callback_facts
+        if(host.name in callback_facts.keys()
+           and 'common' in callback_facts[host.name].keys()
+           and callback_facts[host.name]['common'].get('version', '')):
+            print "B"
             installed_hosts.append(host)
     return installed_hosts
 

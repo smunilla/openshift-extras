@@ -281,8 +281,8 @@ class AttendedCliTests(OOCliFixture):
 
         # Modify the mock facts to return a version indicating OpenShift
         # is already installed on our master, and the first node.
-#        DUMMY_SYSTEM_FACTS['10.0.0.1']['common']['version'] = "3.0.0"
-#        DUMMY_SYSTEM_FACTS['10.0.0.2']['common']['version'] = "3.0.0"
+        DUMMY_SYSTEM_FACTS['10.0.0.1']['common']['version'] = "3.0.0"
+        DUMMY_SYSTEM_FACTS['10.0.0.2']['common']['version'] = "3.0.0"
 
         load_facts_mock.return_value = (DUMMY_SYSTEM_FACTS, 0)
         run_playbook_mock.return_value = 0
@@ -290,6 +290,7 @@ class AttendedCliTests(OOCliFixture):
         result = self.runner.invoke(cli.main, self.cli_args,
             input=self._build_input())
         self.assert_result(result, 0)
+        print result.output
 
         load_facts_args = load_facts_mock.call_args[0]
         self.assertEquals(os.path.join(self.work_dir, ".ansible/hosts"),
