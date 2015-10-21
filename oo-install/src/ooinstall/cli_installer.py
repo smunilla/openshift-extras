@@ -4,7 +4,7 @@ import sys
 from ooinstall import install_transactions
 from ooinstall import OOConfig
 from ooinstall.oo_config import Host
-from variants import SUPPORTED_VARIANTS, find_variant, get_variant_version_combos
+from variants import find_variant, get_variant_version_combos
 
 def validate_ansible_dir(ctx, param, path):
     if not path:

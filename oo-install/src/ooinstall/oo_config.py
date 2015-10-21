@@ -68,7 +68,6 @@ class Host(object):
 
 
 class OOConfig(object):
-    settings = {}
     new_config = True
     default_dir = os.path.normpath(
         os.environ.get('XDG_CONFIG_HOME',
@@ -81,7 +80,11 @@ class OOConfig(object):
         else:
             self.config_path = os.path.normpath(self.default_dir +
                                                 self.default_file)
+        self.settings = {}
+        print "Loading config: %s" % self.config_path
+        print self.settings
         self.read_config()
+        print self.settings
         self.set_defaults()
 
     def read_config(self, is_new=False):
@@ -95,7 +98,6 @@ class OOConfig(object):
             if new_settings:
                 self.settings = new_settings
                 # Parse the hosts into DTO objects:
-                print self.settings
                 if 'hosts' in self.settings:
                     for host in self.settings['hosts']:
                         self.hosts.append(Host(**host))
