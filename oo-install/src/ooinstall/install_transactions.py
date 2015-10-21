@@ -49,26 +49,23 @@ def generate_inventory(hosts):
     base_inventory.close()
     return base_inventory_path
 
+
 def write_host(host, inventory, scheduleable=True):
     global CFG
-    if 'validated_facts' in CFG.settings and host in CFG.settings['validated_facts']:
-        facts = ''
-        if 'ip' in CFG.settings['validated_facts'][host]:
-            facts += ' openshift_ip={}'.format(CFG.settings['validated_facts'][host]["ip"])
-        if 'public_ip' in CFG.settings['validated_facts'][host]:
-            facts += ' openshift_public_ip={}'.format(CFG.settings['validated_facts'][host]["public_ip"])
-        if 'hostname' in CFG.settings['validated_facts'][host]:
-            facts += ' openshift_hostname={}'.format(CFG.settings['validated_facts'][host]["hostname"])
-        if 'public_hostname' in CFG.settings['validated_facts'][host]:
-            facts += ' openshift_public_hostname={}'.format(CFG.settings['validated_facts'][host]["public_hostname"])
-        # TODO: For not write_host is handles both master and nodes.
-        # Technically only nodes will never need this.
-        if not scheduleable:
-            facts += ' openshift_scheduleable=False'
-        inventory.write('{} {}\n'.format(host, facts))
-    else:
-        inventory.write('{}\n'.format(host))
-    return
+    facts = ''
+    if host.ip:
+        facts += ' openshift_ip={}'.format(host.ip)
+    if host.public_ip:
+        facts += ' openshift_public_ip={}'.format(host.public_ip)
+    if host.hostname:
+        facts += ' openshift_hostname={}'.format(host.hostname)
+    if host.public_hostname:
+        facts += ' openshift_public_hostname={}'.format(host.public_hostname)
+    # TODO: For not write_host is handles both master and nodes.
+    # Technically only nodes will ever need this.
+    if not scheduleable:
+        facts += ' openshift_scheduleable=False'
+    inventory.write('{} {}\n'.format(host, facts))
 
 
 def load_system_facts(inventory_file, os_facts_path, env_vars):

@@ -156,6 +156,21 @@ class UnattendedCliTests(OOCliFixture):
         self.assertEquals('openshift',
             inventory.get('OSEv3:vars', 'product_type'))
 
+        # Check the masters:
+        print inventory.items('masters')
+        self.assertEquals(1, len(inventory.items('masters')))
+        self.assertEquals(3, len(inventory.items('nodes')))
+
+        for item in inventory.items('masters'):
+            # ansible host lines do NOT parse nicely:
+            master_line = item[0]
+            if item[1] is not None:
+                master_line = "%s=%s" % (master_line, item[1])
+            self.assertTrue('openshift_ip' in master_line)
+            self.assertTrue('openshift_public_ip' in master_line)
+            self.assertTrue('openshift_hostname' in master_line)
+            self.assertTrue('openshift_public_hostname' in master_line)
+
     @patch('ooinstall.install_transactions.run_main_playbook')
     @patch('ooinstall.install_transactions.load_system_facts')
     def test_variant_version_latest_assumed(self, load_facts_mock,
@@ -339,13 +354,8 @@ class AttendedCliTests(OOCliFixture):
         self.assert_result(result, 0)
 
         self._verify_load_facts(load_facts_mock)
-
-        # Make sure we ran on the expected masters and nodes:
-        # TODO: Sam is this right? Adding a node means we should execute on the master, plus
-        # that new node?
         self._verify_run_playbook(run_playbook_mock, 3, 2)
 
-        # Make sure the config file comes out looking right:
         written_config = self._read_yaml(self.config_file)
         self._verify_config_hosts(written_config, 3)
 
