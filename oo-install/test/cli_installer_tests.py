@@ -237,6 +237,7 @@ class AttendedCliTests(OOCliFixture):
             for (host, is_master) in hosts:
                 inputs.append(host)
                 inputs.append('y' if is_master else 'n')
+                inputs.append('rpm')
                 if i < len(hosts) - 1:
                     inputs.append('y')  # Add more hosts
                 else:
@@ -252,6 +253,7 @@ class AttendedCliTests(OOCliFixture):
             for (host, is_master) in add_nodes:
                 inputs.append(host)
                 inputs.append('y' if is_master else 'n')
+                inputs.append('rpm')
                 if i < len(add_nodes) - 1:
                     inputs.append('y')  # Add more hosts
                 else:
