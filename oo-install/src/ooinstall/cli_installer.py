@@ -345,7 +345,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
             if response == 1: # add more nodes
                 new_nodes = collect_new_nodes()
 
-                hosts_to_run_on.append(new_nodes)
+                hosts_to_run_on.extend(new_nodes)
 
                 install_transactions.set_config(oo_cfg)
                 callback_facts, error = install_transactions.default_facts(oo_cfg.hosts)
