@@ -125,7 +125,8 @@ http://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/
         more_hosts = click.confirm('Do you want to add additional hosts?')
     return hosts
 
-def confirm_hosts_facts(hosts, callback_facts):
+def confirm_hosts_facts(oo_cfg, callback_facts):
+    hosts = oo_cfg.hosts
     click.clear()
     message = """
 A list of the facts gathered from the provided hosts follows. Because it is
@@ -184,9 +185,11 @@ Notes:
     facts_confirmed = click.confirm("Do the above facts look correct?")
     if not facts_confirmed:
         message = """
-Edit installer.cfg.yaml with the desired values and rerun oo-install using --unattended .
-"""
+Edit %s with the desired values and rerun oo-install with --unattended .
+""" % oo_cfg.config_path
         click.echo(message)
+        # Make sure we actually write out the config file.
+        oo_cfg.save_to_disk()
         sys.exit(0)
     return default_facts
 
@@ -309,13 +312,9 @@ Add new nodes here
 def get_installed_hosts(hosts, callback_facts):
     installed_hosts = []
     for host in hosts:
-        print "A"
-        print type(host)
-        print callback_facts
         if(host.name in callback_facts.keys()
            and 'common' in callback_facts[host.name].keys()
            and callback_facts[host.name]['common'].get('version', '')):
-            print "B"
             installed_hosts.append(host)
     return installed_hosts
 
@@ -417,7 +416,7 @@ def main(configuration, ansible_playbook_directory, ansible_log_path, unattended
     # to confirm the settings for new nodes. Look into this once we're distinguishing
     # between new and pre-existing nodes.
     if len(oo_cfg.calc_missing_facts()) > 0:
-        validated_hosts = confirm_hosts_facts(oo_cfg.hosts, callback_facts)
+        validated_hosts = confirm_hosts_facts(oo_cfg, callback_facts)
 
     oo_cfg.save_to_disk()
 
