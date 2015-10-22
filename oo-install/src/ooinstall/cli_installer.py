@@ -383,6 +383,12 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
                               readable=True),
               # callback=validate_ansible_dir,
               envvar='OO_ANSIBLE_PLAYBOOK_DIRECTORY')
+@click.option('--ansible-config',
+              type=click.Path(file_okay=True,
+                              dir_okay=False,
+                              writable=True,
+                              readable=True),
+              default=None)
 @click.option('--ansible-log-path',
               type=click.Path(file_okay=True,
                               dir_okay=False,
@@ -391,7 +397,7 @@ def get_hosts_to_run_on(oo_cfg, callback_facts, unattended, force):
               default="/tmp/ansible.log")
 @click.option('--unattended', '-u', is_flag=True, default=False)
 @click.option('--force', '-f', is_flag=True, default=False)
-def main(configuration, ansible_playbook_directory, ansible_log_path, unattended, force):
+def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_path, unattended, force):
     oo_cfg = OOConfig(configuration)
 
     if not ansible_playbook_directory:
