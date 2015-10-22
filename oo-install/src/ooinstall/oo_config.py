@@ -114,8 +114,6 @@ class OOConfig(object):
 
     def set_defaults(self):
 
-        if 'ansible_config' not in self.settings:
-            self.settings['ansible_config'] = resource_filename(__name__, 'ansible.cfg')
         if 'ansible_inventory_directory' not in self.settings:
             self.settings['ansible_inventory_directory'] = \
                 self._default_ansible_inv_dir()

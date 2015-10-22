@@ -402,6 +402,8 @@ def main(configuration, ansible_playbook_directory, ansible_config, ansible_log_
 
     if not ansible_playbook_directory:
         ansible_playbook_directory = oo_cfg.settings.get('ansible_playbook_directory', '')
+    if ansible_config:
+        oo_cfg.settings['ansible_config'] = ansible_config
     validate_ansible_dir(None, None, ansible_playbook_directory)
     oo_cfg.settings['ansible_playbook_directory'] = ansible_playbook_directory
     oo_cfg.ansible_playbook_directory = ansible_playbook_directory

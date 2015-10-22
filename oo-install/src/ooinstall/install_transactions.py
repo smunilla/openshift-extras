@@ -97,6 +97,8 @@ def default_facts(hosts):
     facts_env["ANSIBLE_CALLBACK_PLUGINS"] = CFG.settings['ansible_plugins_directory']
     if 'ansible_log_path' in CFG.settings:
         facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']
+    if 'ansible_config' in CFG.settings:
+        facts_env['ANSIBLE_CONFIG'] = CFG.settings['ansible_config']
     return load_system_facts(inventory_file, os_facts_path, facts_env)
 
 
@@ -111,8 +113,13 @@ def run_main_playbook(hosts, hosts_to_run_on):
                                           'playbooks/byo/config.yml')
     facts_env = os.environ.copy()
     if 'ansible_log_path' in CFG.settings:
-        facts_env["ANSIBLE_LOG_PATH"] = CFG.settings['ansible_log_path']
+        facts_env['ANSIBLE_LOG_PATH'] = CFG.settings['ansible_log_path']
+    if 'ansible_config' in CFG.settings:
+        facts_env['ANSIBLE_CONFIG'] = CFG.settings['ansible_config']
+    return run_ansible(main_playbook_path, inventory_file, facts_env)
+
+def run_ansible(playbook, inventory, env_vars):
     return subprocess.call(['ansible-playbook',
-                             '--inventory-file={}'.format(inventory_file),
-                             main_playbook_path],
-                             env=facts_env)
+                             '--inventory-file={}'.format(inventory),
+                             playbook],
+                             env=env_vars)

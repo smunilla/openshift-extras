@@ -122,6 +122,7 @@ class UnattendedCliTests(OOCliFixture):
             '.ansible/callback_facts.yaml'),
             env_vars['OO_INSTALL_CALLBACK_FACTS_YAML'])
         self.assertEqual('/tmp/ansible.log', env_vars['ANSIBLE_LOG_PATH'])
+        self.assertTrue('ANSIBLE_CONFIG' not in env_vars)
 
         # Make sure we ran on the expected masters and nodes:
         hosts = run_playbook_mock.call_args[0][0]
@@ -224,6 +225,75 @@ class UnattendedCliTests(OOCliFixture):
         inventory.read(os.path.join(self.work_dir, '.ansible/hosts'))
         self.assertEquals('enterprise',
             inventory.get('OSEv3:vars', 'deployment_type'))
+
+    @patch('ooinstall.install_transactions.run_ansible')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_no_ansible_config_specified(self, load_facts_mock, run_ansible_mock):
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_ansible_mock.return_value = 0
+
+        config = SAMPLE_CONFIG % 'openshift-enterprise'
+
+        self._ansible_config_test(load_facts_mock, run_ansible_mock,
+            config, None, None)
+
+    @patch('ooinstall.install_transactions.run_ansible')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_ansible_config_specified_cli(self, load_facts_mock, run_ansible_mock):
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_ansible_mock.return_value = 0
+
+        config = SAMPLE_CONFIG % 'openshift-enterprise'
+        ansible_config = os.path.join(self.work_dir, 'ansible.cfg')
+
+        self._ansible_config_test(load_facts_mock, run_ansible_mock,
+            config, ansible_config, ansible_config)
+
+    @patch('ooinstall.install_transactions.run_ansible')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_ansible_config_specified_in_installer_config(self,
+        load_facts_mock, run_ansible_mock):
+
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_ansible_mock.return_value = 0
+
+        ansible_config = os.path.join(self.work_dir, 'ansible.cfg')
+        config = SAMPLE_CONFIG % 'openshift-enterprise'
+        config = "%s\nansible_config: %s" % (config, ansible_config)
+        self._ansible_config_test(load_facts_mock, run_ansible_mock,
+            config, None, ansible_config)
+
+    def _ansible_config_test(self, load_facts_mock, run_ansible_mock,
+        installer_config, ansible_config_cli=None, expected_result=None):
+        """
+        Utility method for testing the ways you can specify the ansible config.
+        """
+
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_ansible_mock.return_value = 0
+
+        config_file = self.write_config(os.path.join(self.work_dir,
+            'ooinstall.conf'), installer_config)
+
+        self.cli_args.extend(["-c", config_file])
+        if ansible_config_cli:
+            self.cli_args.extend(["--ansible-config", ansible_config_cli])
+        result = self.runner.invoke(cli.main, self.cli_args)
+        self.assert_result(result, 0)
+
+        # Test the env vars for facts playbook:
+        facts_env_vars = load_facts_mock.call_args[0][2]
+        if expected_result:
+            self.assertEquals(expected_result, facts_env_vars['ANSIBLE_CONFIG'])
+        else:
+            self.assertFalse('ANSIBLE_CONFIG' in facts_env_vars)
+
+        # Test the env vars for main playbook:
+        playbook, inventory, env_vars = run_ansible_mock.call_args[0]
+        if expected_result:
+            self.assertEquals(expected_result, env_vars['ANSIBLE_CONFIG'])
+        else:
+            self.assertFalse('ANSIBLE_CONFIG' in env_vars)
 
 
 class AttendedCliTests(OOCliFixture):
