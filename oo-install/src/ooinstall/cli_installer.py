@@ -118,6 +118,13 @@ http://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/
         host_props['master'] = click.confirm('Will this host be an OpenShift Master?')
         host_props['node'] = True
 
+        rpm_or_container = click.prompt('Will this host be RPM or Container based?',
+                                        type=click.Choice(['rpm', 'container']))
+        if rpm_or_container == 'container':
+            host_props['containerized'] = True
+        else:
+            host_props['containerized'] = False
+
         host = Host(**host_props)
 
         hosts.append(host)
