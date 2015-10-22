@@ -1,4 +1,4 @@
-
+import sys
 import copy
 import os
 import ConfigParser
@@ -304,7 +304,7 @@ class AttendedCliTests(OOCliFixture):
         self.config_file = os.path.join(self.work_dir, 'config.yml')
         self.cli_args.extend(["-c", self.config_file])
 
-    def _build_input(self, ssh_user='root', hosts=None, variant_num=1, add_nodes=None):
+    def _build_input(self, ssh_user=None, hosts=None, variant_num=None, add_nodes=None, confirm_facts=None):
         """
         Builds a CLI input string with newline characters to simulate
         the full run.
@@ -313,8 +313,9 @@ class AttendedCliTests(OOCliFixture):
 
         inputs = [
             'y',  # let's proceed
-            ssh_user,
         ]
+        if ssh_user:
+            inputs.append(ssh_user)
 
         if hosts:
             i = 0
@@ -328,7 +329,8 @@ class AttendedCliTests(OOCliFixture):
                     inputs.append('n')  # Done adding hosts
                 i += 1
 
-        inputs.append(str(variant_num))  # Choose variant + version
+        if variant_num:
+            inputs.append(str(variant_num))  # Choose variant + version
 
         # TODO: support option 2, fresh install
         if add_nodes:
@@ -345,7 +347,7 @@ class AttendedCliTests(OOCliFixture):
                 i += 1
 
         inputs.extend([
-            'y',  # confirm the facts
+            confirm_facts,
             'y',  # lets do this
         ])
 
@@ -389,7 +391,10 @@ class AttendedCliTests(OOCliFixture):
         cli_input = self._build_input(hosts=[
             ('10.0.0.1', True),
             ('10.0.0.2', False),
-            ('10.0.0.3', False)])
+            ('10.0.0.3', False)],
+                                      ssh_user='root',
+                                      variant_num=1,
+                                      confirm_facts='y')
         result = self.runner.invoke(cli.main, self.cli_args,
             input=cli_input)
         self.assert_result(result, 0)
@@ -417,11 +422,13 @@ class AttendedCliTests(OOCliFixture):
             ('10.0.0.1', True),
             ('10.0.0.2', False),
             ],
-            add_nodes=[
-                ('10.0.0.3', False)
-            ])
-        result = self.runner.invoke(cli.main, self.cli_args,
-            input=cli_input)
+                                      add_nodes=[('10.0.0.3', False)],
+                                      ssh_user='root',
+                                      variant_num=1,
+                                      confirm_facts='y')
+        result = self.runner.invoke(cli.main,
+                                    self.cli_args,
+                                    input=cli_input)
         self.assert_result(result, 0)
 
         self._verify_load_facts(load_facts_mock)
@@ -430,7 +437,28 @@ class AttendedCliTests(OOCliFixture):
         written_config = self._read_yaml(self.config_file)
         self._verify_config_hosts(written_config, 3)
 
-# TODO: test with config file, attended fresh install
+    @patch('ooinstall.install_transactions.run_main_playbook')
+    @patch('ooinstall.install_transactions.load_system_facts')
+    def test_fresh_install_with_config(self, load_facts_mock, run_playbook_mock):
+        load_facts_mock.return_value = (MOCK_FACTS, 0)
+        run_playbook_mock.return_value = 0
+
+        config_file = self.write_config(os.path.join(self.work_dir,
+                                                     'ooinstall.conf'),
+                                        SAMPLE_CONFIG % 'openshift-enterprise')
+        cli_input = self._build_input(confirm_facts='y')
+        self.cli_args.extend(["-c", config_file])
+        result = self.runner.invoke(cli.main,
+                                    self.cli_args,
+                                    input=cli_input)
+        self.assert_result(result, 0)
+
+        self._verify_load_facts(load_facts_mock)
+        self._verify_run_playbook(run_playbook_mock, 3, 3)
+
+        written_config = self._read_yaml(config_file)
+        self._verify_config_hosts(written_config, 3)
+
 # TODO: test with config file, attended add node
 # TODO: test with config file, attended new node already in config file
 # TODO: test with config file, attended new node already in config file, plus manually added nodes
